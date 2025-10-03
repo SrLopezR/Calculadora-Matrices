@@ -3,11 +3,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import threading
 import time
-
 from fraccion import Fraccion
 from gauss import GaussJordanEngine
 from matrices import sumar_matrices, multiplicar_matrices, multiplicar_escalar_matriz
-
 
 # ====================== WIDGETS DE MATRIZ ======================
 class MatrixInput(ttk.Frame):
@@ -233,14 +231,26 @@ class MainApp(tk.Tk):
         if tipo=="inconsistente": msg="El sistema es INCONSISTENTE: no tiene solución."
         elif tipo=="única": msg="Solución ÚNICA:\n " + "\n ".join(f"x{i+1}={v}" for i,v in enumerate(data))
         else:
-            particular,libres,base=data
-            txt=["Infinitas soluciones:"]
-            txt.append(" Solución particular:")
-            txt+= [f" x{i+1}={v}" for i,v in enumerate(particular)]
-            if libres: txt.append(" Variables libres: " + ", ".join(f"x{j+1}" for j in libres))
+            libres, base = data
+            txt = ["Infinitas soluciones:"]
+            if libres:
+                txt.append(" Variables libres: " + ", ".join(f"x{j + 1}" for j in libres))
+            # Show dependent variables in terms of free variables
+            n = len(base[0]) if base else 0
+            for i in range(n):
+                if i not in libres:
+                    expr = []
+                    for idx, j in enumerate(libres):
+                        coef = base[idx][i]
+                        if coef != 0:
+                            term = f"{coef}·x{j + 1}" if coef != 1 else f"x{j + 1}"
+                            expr.append(term)
+                    if expr:
+                        txt.append(f" x{i + 1} = " + " + ".join(expr))
             txt.append(" Base del espacio nulo:")
-            for k,vec in enumerate(base,start=1): txt.append(" v"+str(k)+" = (" + ", ".join(str(x) for x in vec)+")")
-            msg="\n".join(txt)
+            for k, vec in enumerate(base, start=1):
+                txt.append(" v" + str(k) + " = (" + ", ".join(str(x) for x in vec) + ")")
+            msg = "\n".join(txt)
         self.lbl_result.config(text=msg)
         self._update_status("Cálculo finalizado.")
 

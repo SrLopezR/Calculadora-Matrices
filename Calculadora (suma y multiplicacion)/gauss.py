@@ -95,4 +95,4 @@ class GaussJordanEngine:
                 if pc is not None:
                     vec[pc] = -A[i][f]
             base.append(vec)
-        return ("infinitas", (particular, libres, base))
+        return ("infinitas", ( libres, base))

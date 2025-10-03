@@ -1,6 +1,12 @@
 # fraccion.py
+# fraccion.py
 class Fraccion:
     def __init__(self, num, den=1):
+        if isinstance(num, str) and den == 1:
+            f = parse_token(num)
+            self.num = f.num
+            self.den = f.den
+            return
         if den == 0:
             raise ZeroDivisionError("Denominador no puede ser cero")
         if den < 0:
