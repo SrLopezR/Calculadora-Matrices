@@ -3,6 +3,10 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import threading
 import time
+
+import self
+import top
+
 from fraccion import Fraccion
 from gauss import GaussJordanEngine
 from matrices import sumar_matrices, multiplicar_matrices, multiplicar_escalar_matriz, formatear_matriz, Transpuesta
@@ -118,7 +122,7 @@ class MainApp(tk.Tk):
         ttk.Button(top,text="Sumar matrices", command=self.sumar_gui).pack(side="left", padx=5)
         ttk.Button(top,text="Multiplicar matrices", command=self.multiplicar_gui).pack(side="left", padx=5)
         ttk.Button(top, text="Escalar × matriz", command=self.abrir_escalar).pack(side="left", padx=6)
-        ttk.Button(top, text="Transpuesta", command=self.Transouesta_gui).pack(side="left", padx=7)
+        ttk.Button(top, text="Transpuesta", command=self.Transpuesta_gui).pack(side="left", padx=7)
 
         self.input_frame=ttk.LabelFrame(self,text="Matriz aumentada (coeficientes | términos independientes)")
         self.input_frame.pack(fill="x", padx=10,pady=6)
@@ -145,6 +149,62 @@ class MainApp(tk.Tk):
         self.lbl_result=ttk.Label(self.result_frame,text="—"); self.lbl_result.pack(anchor="w", padx=8,pady=8)
 
         self.status=ttk.Label(self, relief="sunken", anchor="w"); self.status.pack(fill="x", side="bottom")
+    def matriz_gui(self, title, operation):
+        win = tk.Toplevel(self)
+        win.title(title)
+        win.geometry("700x550")
+        size_frame = ttk.Frame(win);
+        size_frame.pack(fill="x", padx=8, pady=4)
+        ttk.Label(size_frame, text="Filas:").pack(side="left")
+        spin_rows = tk.Spinbox(size_frame, from_=1, to=8, width=5);
+        spin_rows.delete(0, "end");
+        spin_rows.insert(0, "2");
+        spin_rows.pack(side="left")
+        ttk.Label(size_frame, text="Columnas:").pack(side="left")
+        spin_cols = tk.Spinbox(size_frame, from_=1, to=8, width=5);
+        spin_cols.delete(0, "end");
+        spin_cols.insert(0, "2");
+        spin_cols.pack(side="left")
+
+        def resize_input():
+            try:
+                r, c = int(spin_rows.get()), int(spin_cols.get())
+            except:
+                messagebox.showerror("Error", "Dimensiones inválidas");
+                return
+            inputA.set_size(r, c)
+
+        ttk.Button(size_frame, text="Redimensionar", command=resize_input).pack(side="left", padx=10)
+
+        # Matrix input
+        ttk.Label(win, text="Matriz").pack(anchor="w")
+        inputA = MatrixInput(win, rows=2, cols=2, allow_b=False)
+        inputA.pack(fill="x", padx=8, pady=6)
+
+        txt_log = tk.Text(win, height=12, wrap="word");
+        txt_log.pack(fill="both", expand=True, padx=8, pady=6)
+        lbl_result = ttk.Label(win, text="—");
+        lbl_result.pack(anchor="w", padx=8, pady=6)
+
+        def calcular():
+            try:
+                A = inputA.get_matrix()
+                R = operation(A)
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
+                return
+            lbl_result.config(text=formatear_matriz(R))
+            txt_log.delete(1.0, tk.END)
+            txt_log.insert(tk.END, "Transpuesta calculada.\n")
+
+        ttk.Button(win, text="Calcular", command=calcular).pack(side="left", padx=10, pady=10)
+        ttk.Button(win, text="Limpiar",
+                   command=lambda: [inputA.clear(), txt_log.delete(1.0, tk.END), lbl_result.config(text="—")]).pack(
+            pady=6)
+
+    def Transpuesta_gui(self):
+        self.matriz_gui("Transpuesta de matrices", Transpuesta)
+
 
     # ============= Helpers y Gauss =============
     def resize_matrix(self):
@@ -257,29 +317,17 @@ class MainApp(tk.Tk):
 
     def _update_status(self,s): self.status.config(text=s)
 
-    # ================== SUMA / MULTIPLICACION ==================
+    # ================== SUMA / MULTIPLICACION  / TRANSPUESTA   ================== #
     def abrir_escalar(self):
         EscalarStepApp()
     def sumar_gui(self):
         self.matrices_gui("Sumar matrices", sumar_matrices, suma=True)
-    def Transouesta_gui(self):
-        self.matriz_gui("Transpuesta de matrices", Transpuesta,)
 
+    def Transpuesta_gui(self):
+        self.matriz_gui("Transpuesta de matrices", Transpuesta)
 
     def multiplicar_gui(self):
         self.matrices_gui("Multiplicar matrices", multiplicar_matrices, suma=False)
-
-    def matriz_gui(self, title, operation):
-        win=tk.Toplevel(self)
-        win.title(title)
-        win.geometry("700x550")
-        # Selección de tamaño
-        size_frame=ttk.Frame(win); size_frame.pack(fill="x", padx=8, pady=4)
-        ttk.Label(size_frame, text="Filas:").pack(side="left")
-        spin_rows=tk.Spinbox(size_frame, from_=1,to=8,width=5); spin_rows.delete(0,"end"); spin_rows.insert(0,"2"); spin_rows.pack(side="left")
-        ttk.Label(size_frame, text="Columnas:").pack(side="left")
-        spin_cols=tk.Spinbox(size_frame, from_=1,to=8,width=5); spin_cols.delete(0,"end"); spin_cols.insert(0,"2"); spin_cols.pack(side="left")
-
 
     def matrices_gui(self, title, operation, suma=False):
         win=tk.Toplevel(self)
@@ -342,6 +390,8 @@ class MainApp(tk.Tk):
 
         ttk.Button(win,text="Calcular", command=calcular).pack(side="left", padx=10,pady=10)
         ttk.Button(win,text="Limpiar", command=lambda:[inputA.clear(), inputB.clear(), txt_log.delete(1.0,tk.END), lbl_result.config(text="—")]).pack(pady=6)
+
+
 # ================== Multiplicacion de escalar ==========================
 
 class EscalarStepApp(tk.Toplevel):
