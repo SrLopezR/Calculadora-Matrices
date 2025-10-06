@@ -1,5 +1,15 @@
 # matrices.py
 from fraccion import Fraccion, parse_token
+def Transpuesta(M):
+    """Devuelve la transpuesta de la matriz M."""
+    if not M or not M[0]:
+        return []
+    m, n = len(M), len(M[0])
+    T = [[Fraccion(0) for _ in range(m)] for _ in range(n)]
+    for i in range(m):
+        for j in range(n):
+            T[j][i] = M[i][j]
+    return T
 
 def sumar_matrices(A, B):
     """Suma dos matrices de igual tamaño y devuelve (resultado, pasos)."""
