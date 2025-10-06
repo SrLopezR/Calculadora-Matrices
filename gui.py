@@ -263,7 +263,7 @@ class MainApp(tk.Tk):
     def sumar_gui(self):
         self.matrices_gui("Sumar matrices", sumar_matrices, suma=True)
     def Transouesta_gui(self):
-        self.matriz_gui("Transpuesta de matrices", Transpuesta, suma=False)
+        self.matriz_gui("Transpuesta de matrices", Transpuesta,)
 
 
     def multiplicar_gui(self):
