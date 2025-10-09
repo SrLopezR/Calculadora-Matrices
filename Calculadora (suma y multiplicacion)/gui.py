@@ -1,62 +1,51 @@
-# gui.py
+# gui_tabs_local_controls.py
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-import threading
-import time
-
-import self
-import top
+import threading, time
 
 from fraccion import Fraccion
 from gauss import GaussJordanEngine
-from matrices import sumar_matrices, multiplicar_matrices, multiplicar_escalar_matriz, formatear_matriz, Transpuesta
+from matrices import (
+    sumar_matrices, multiplicar_matrices,
+    multiplicar_escalar_matriz, formatear_matriz, Transpuesta
+)
 
-# ====================== WIDGETS DE MATRIZ ======================
+# ------------------ Widgets reutilizables ------------------
+
 class MatrixInput(ttk.Frame):
+    """Cuadrícula de entradas para matriz (con columna b opcional)."""
     def __init__(self, master, rows=3, cols=3, allow_b=True, **kw):
         super().__init__(master, **kw)
         self.rows, self.cols = rows, cols
-        self.allow_b = allow_b  # True si hay columna b (Gauss)
-        self.entries=[]
+        self.allow_b = allow_b
+        self.entries = []
         self._build()
 
     def _build(self):
         # Encabezados
         for j in range(self.cols):
-            ttk.Label(self, text=f"x{j+1}", anchor="center").grid(row=0,column=j,padx=4,pady=4)
+            ttk.Label(self, text=f"x{j+1}", anchor="center").grid(row=0, column=j, padx=4, pady=(0,6))
         if self.allow_b:
             ttk.Label(self, text="|", width=2).grid(row=0, column=self.cols)
-            ttk.Label(self, text="b", anchor="center").grid(row=0,column=self.cols+1,padx=4,pady=4)
+            ttk.Label(self, text="b", anchor="center").grid(row=0, column=self.cols+1, padx=4, pady=(0,6))
 
         for i in range(self.rows):
-            fila=[]
+            fila = []
             for j in range(self.cols + (1 if self.allow_b else 0)):
-                e=ttk.Entry(self, width=8, justify="center")
-                col=j if j<self.cols else j+1
-                e.grid(row=i+1, column=col, padx=2,pady=2)
+                e = ttk.Entry(self, width=9, justify="center")
+                col = j if j < self.cols else j + 1
+                e.grid(row=i+1, column=col, padx=3, pady=3)
                 fila.append(e)
             self.entries.append(fila)
+
             if self.allow_b:
                 ttk.Label(self, text="|", width=2).grid(row=i+1, column=self.cols)
 
-    def get_matrix(self):
-        M=[]
-        for i in range(self.rows):
-            fila=[]
-            for j in range(len(self.entries[i])):
-                t=self.entries[i][j].get().strip()
-                if not t: t='0'
-                try:
-                    fila.append(Fraccion(t))
-                except Exception:
-                    raise ValueError(f"Valor inválido en fila {i+1}, columna {j+1}: '{t}'")
-            M.append(fila)
-        return M
-
     def set_size(self, rows, cols):
-        for child in list(self.winfo_children()): child.destroy()
+        for w in list(self.winfo_children()):
+            w.destroy()
         self.rows, self.cols = rows, cols
-        self.entries=[]
+        self.entries = []
         self._build()
 
     def clear(self):
@@ -64,162 +53,529 @@ class MatrixInput(ttk.Frame):
             for e in fila:
                 e.delete(0, tk.END)
 
+    def get_matrix(self):
+        M = []
+        for i in range(self.rows):
+            fila = []
+            for j in range(len(self.entries[i])):
+                t = self.entries[i][j].get().strip() or "0"
+                try:
+                    fila.append(Fraccion(t))
+                except Exception:
+                    raise ValueError(f"Valor inválido en fila {i+1}, columna {j+1}: '{t}'")
+            M.append(fila)
+        return M
+
+
 class MatrixView(ttk.Frame):
+    """Vista de matriz tipo tabla con resaltado de fila pivote."""
     def __init__(self, master, **kw):
         super().__init__(master, **kw)
-        self.tree = ttk.Treeview(self, show='headings', height=8)
+        self.tree = ttk.Treeview(self, show="headings", height=10)
         self.tree.pack(fill="both", expand=True)
-        self._cols=0
-        style=ttk.Style(self)
-        style.configure("Pivot.TREE", background="#FFF1C1")
+        self._cols = 0
 
-    def set_matrix(self,M):
+    def set_matrix(self, M):
         if not M: return
-        rows=len(M)
-        cols=len(M[0])
-        if cols!=self._cols:
+        rows, cols = len(M), len(M[0])
+        if cols != self._cols:
             self.tree.delete(*self.tree.get_children())
-            self.tree["columns"]=[f"c{j}" for j in range(cols)]
+            self.tree["columns"] = [f"c{j}" for j in range(cols)]
             for j in range(cols):
-                txt=f"x{j+1}" if j<cols-1 else "b"
+                txt = f"x{j+1}" if j < cols-1 else "b"
                 self.tree.heading(f"c{j}", text=txt)
-                self.tree.column(f"c{j}", width=60, anchor="center")
-            self._cols=cols
+                self.tree.column(f"c{j}", width=80, anchor="center")
+            self._cols = cols
         self.tree.delete(*self.tree.get_children())
         for i in range(rows):
-            vals=[str(x) for x in M[i]]
-            self.tree.insert('', 'end', values=vals)
+            self.tree.insert("", "end", values=[str(x) for x in M[i]])
 
-    def highlight(self,row=None, col=None):
-        for iid in self.tree.get_children(): self.tree.item(iid,tags=())
+    def highlight(self, row=None, col=None):
+        style = ttk.Style(self)
+        style.map("Treeview", background=[("selected", "#D9ECFF")])
         if row is not None:
             try:
-                iid=self.tree.get_children()[row]
-                self.tree.item(iid, tags=("pivot",))
-                self.tree.tag_configure("pivot", background="#FFF1C1")
-            except IndexError: pass
+                iid = self.tree.get_children()[row]
+                self.tree.selection_set(iid)
+                self.tree.see(iid)
+            except IndexError:
+                pass
 
-# ====================== APP PRINCIPAL ======================
-class MainApp(tk.Tk):
+
+# ------------------ App con pestañas (controles locales) ------------------
+
+class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Soluciones Matrices")
-        self.geometry("980x680")
-        self.engine=None
-        self.auto_running=False
-        self.auto_thread=None
+        self.title("Soluciones de Álgebra Lineal")
+        self.geometry("1100x720")
+        self.minsize(1000, 640)
+        self._setup_style()
+
+        self.engine = None
+        self.auto_running = False
+        self.auto_thread = None
+        self.btn_auto = None  # se crea dentro de la pestaña Gauss
+
         self._build_ui()
 
+    # -------- Estilos (solo UI) --------
+    def _setup_style(self):
+        style = ttk.Style(self)
+        try: style.theme_use("clam")
+        except: pass
+        primary = "#2563EB"
+        surface = "#F5F7FB"
+        border  = "#E3E8F0"
+
+        style.configure(".", font=("Segoe UI", 10))
+        style.configure("TFrame", background=surface)
+        style.configure("Toolbar.TFrame", background="white")
+        style.configure("Card.TLabelframe", background="white", bordercolor=border)
+        style.configure("Card.TLabelframe.Label", background="white", foreground="#334155",
+                        font=("Segoe UI Semibold", 10))
+        style.configure("Title.TLabel", font=("Segoe UI Semibold", 11))
+        style.configure("Status.TLabel", background="#F8FAFC", anchor="w")
+        style.configure("Accent.TButton", padding=6)
+        style.map("Accent.TButton",
+                  background=[("!disabled", primary), ("pressed", "#1D4ED8")],
+                  foreground=[("!disabled", "white")])
+
+    # -------- Construcción general --------
     def _build_ui(self):
-        top=ttk.Frame(self); top.pack(fill="x", padx=10,pady=8)
-        ttk.Label(top,text="Ecuaciones (m):").pack(side="left")
-        self.spin_m=tk.Spinbox(top,from_=1,to=12,width=5); self.spin_m.delete(0,tk.END); self.spin_m.insert(0,"3"); self.spin_m.pack(side="left", padx=(4,12))
-        ttk.Label(top,text="Incógnitas (n):").pack(side="left")
-        self.spin_n=tk.Spinbox(top,from_=1,to=12,width=5); self.spin_n.delete(0,tk.END); self.spin_n.insert(0,"3"); self.spin_n.pack(side="left", padx=(4,12))
-        ttk.Button(top,text="Redimensionar",command=self.resize_matrix).pack(side="left")
-        ttk.Button(top,text="Ejemplo",command=self.load_example).pack(side="left", padx=5)
-        ttk.Button(top,text="Limpiar",command=self.clear_inputs).pack(side="left")
-        ttk.Button(top,text="Sumar matrices", command=self.sumar_gui).pack(side="left", padx=5)
-        ttk.Button(top,text="Multiplicar matrices", command=self.multiplicar_gui).pack(side="left", padx=5)
-        ttk.Button(top, text="Escalar × matriz", command=self.abrir_escalar).pack(side="left", padx=6)
-        ttk.Button(top, text="Transpuesta", command=self.Transpuesta_gui).pack(side="left", padx=7)
+        # Encabezado minimal (sin controles globales de Gauss)
+        header = ttk.Frame(self, style="Toolbar.TFrame")
+        header.pack(fill="x", padx=10, pady=8)
+        ttk.Label(header, text="Soluciones de Álgebra Lineal", font=("Segoe UI Semibold", 12)).pack(side="left")
 
-        self.input_frame=ttk.LabelFrame(self,text="Matriz aumentada (coeficientes | términos independientes)")
-        self.input_frame.pack(fill="x", padx=10,pady=6)
-        self.matrix_input=MatrixInput(self.input_frame, rows=3, cols=3)
-        self.matrix_input.pack(fill="x", padx=8,pady=8)
+        # Notebook de pestañas
+        self.nb = ttk.Notebook(self)
+        self.nb.pack(fill="both", expand=True, padx=10, pady=(0,8))
 
-        actions=ttk.Frame(self); actions.pack(fill="x", padx=10,pady=6)
-        ttk.Button(actions,text="Resolver (inicializar)",command=self.start_engine).pack(side="left")
-        ttk.Button(actions,text="Siguiente paso",command=self.next_step).pack(side="left", padx=6)
-        self.btn_auto=ttk.Button(actions,text="Reproducir",command=self.toggle_auto); self.btn_auto.pack(side="left")
-        ttk.Button(actions,text="Reiniciar",command=self.reset).pack(side="left", padx=6)
-        ttk.Button(actions,text="Exportar pasos",command=self.export_log).pack(side="left")
+        # Pestañas
+        self._tab_gauss()
+        self._tab_suma()
+        self._tab_mult()
+        self._tab_escalar()
+        self._tab_transpuesta()
+        self._tab_independencia()   # <-- nueva pestaña agregada
 
-        body=ttk.Frame(self); body.pack(fill="both", expand=True, padx=10,pady=4)
-        left=ttk.Frame(body); left.pack(side="left", fill="both", expand=True)
-        right=ttk.Frame(body); right.pack(side="left", fill="both", expand=True, padx=(8,0))
+        # Resultado general + estado
+        result_card = ttk.Labelframe(self, text="Resultado", style="Card.TLabelframe", padding=8)
+        result_card.pack(fill="x", padx=10, pady=(0,8))
+        self.lbl_result = ttk.Label(result_card, text="—", style="Title.TLabel")
+        self.lbl_result.pack(anchor="w")
 
-        ttk.Label(left,text="Matriz y pivotes").pack(anchor="w")
-        self.matrix_view=MatrixView(left); self.matrix_view.pack(fill="both", expand=True)
-        ttk.Label(right,text="Pasos / Operaciones").pack(anchor="w")
-        self.txt_log=tk.Text(right,height=12,wrap="word"); self.txt_log.pack(fill="both", expand=True)
+        self.status = ttk.Label(self, text="Listo.", style="Status.TLabel")
+        self.status.pack(fill="x", side="bottom")
 
-        self.result_frame=ttk.LabelFrame(self,text="Resultado"); self.result_frame.pack(fill="x", padx=10,pady=10)
-        self.lbl_result=ttk.Label(self.result_frame,text="—"); self.lbl_result.pack(anchor="w", padx=8,pady=8)
+    # -------- Tab 1: Gauss-Jordan --------
+    def _tab_gauss(self):
+        tab = ttk.Frame(self.nb)
+        self.nb.add(tab, text="Gauss-Jordan")
 
-        self.status=ttk.Label(self, relief="sunken", anchor="w"); self.status.pack(fill="x", side="bottom")
-    def matriz_gui(self, title, operation):
-        win = tk.Toplevel(self)
-        win.title(title)
-        win.geometry("700x550")
-        size_frame = ttk.Frame(win);
-        size_frame.pack(fill="x", padx=8, pady=4)
-        ttk.Label(size_frame, text="Filas:").pack(side="left")
-        spin_rows = tk.Spinbox(size_frame, from_=1, to=8, width=5);
-        spin_rows.delete(0, "end");
-        spin_rows.insert(0, "2");
-        spin_rows.pack(side="left")
-        ttk.Label(size_frame, text="Columnas:").pack(side="left")
-        spin_cols = tk.Spinbox(size_frame, from_=1, to=8, width=5);
-        spin_cols.delete(0, "end");
-        spin_cols.insert(0, "2");
-        spin_cols.pack(side="left")
+        # Controles superiores de tamaño y utilidades
+        top = ttk.Frame(tab); top.pack(fill="x", padx=8, pady=(8,4))
+        ttk.Label(top, text="Ecuaciones (m):").pack(side="left", padx=(2,4))
+        self.spin_m = tk.Spinbox(top, from_=1, to=12, width=4)
+        self.spin_m.delete(0,"end"); self.spin_m.insert(0,"3"); self.spin_m.pack(side="left")
+        ttk.Label(top, text="Incógnitas (n):").pack(side="left", padx=(10,4))
+        self.spin_n = tk.Spinbox(top, from_=1, to=12, width=4)
+        self.spin_n.delete(0,"end"); self.spin_n.insert(0,"3"); self.spin_n.pack(side="left", padx=(0,8))
+        ttk.Button(top, text="Redimensionar", command=self.resize_matrix).pack(side="left", padx=(0,6))
+        ttk.Button(top, text="Ejemplo", command=self.load_example).pack(side="left", padx=3)
+        ttk.Button(top, text="Limpiar", command=self.clear_inputs).pack(side="left", padx=3)
 
-        def resize_input():
+        # Controles locales de Gauss-Jordan (LOCALES A ESTA PESTAÑA)
+        ctrls = ttk.Frame(tab); ctrls.pack(fill="x", padx=8, pady=(0,8))
+        ttk.Button(ctrls, text="Resolver (inicializar)", style="Accent.TButton",
+                   command=self.start_engine).pack(side="left", padx=(0,6))
+        ttk.Button(ctrls, text="Siguiente paso", command=self.next_step).pack(side="left", padx=3)
+        self.btn_auto = ttk.Button(ctrls, text="Reproducir", command=self.toggle_auto)
+        self.btn_auto.pack(side="left", padx=3)
+        ttk.Button(ctrls, text="Reiniciar", command=self.reset).pack(side="left", padx=3)
+        ttk.Button(ctrls, text="Exportar pasos", command=self.export_log).pack(side="left", padx=3)
+
+        # Cuerpo: entrada matriz aumentada + vista y pasos
+        body = ttk.Panedwindow(tab, orient="horizontal")
+        body.pack(fill="both", expand=True, padx=8, pady=8)
+
+        left = ttk.Labelframe(body, text="Matriz aumentada (coeficientes | términos independientes)",
+                              style="Card.TLabelframe", padding=8)
+        self.matrix_input = MatrixInput(left, rows=3, cols=3, allow_b=True)
+        self.matrix_input.pack(fill="x")
+        body.add(left, weight=1)
+
+        right = ttk.Frame(body)
+        body.add(right, weight=2)
+
+        sub = ttk.Panedwindow(right, orient="horizontal")
+        sub.pack(fill="both", expand=True)
+        boxA = ttk.Labelframe(sub, text="Matriz y pivotes", style="Card.TLabelframe", padding=6)
+        self.matrix_view = MatrixView(boxA); self.matrix_view.pack(fill="both", expand=True)
+        sub.add(boxA, weight=1)
+
+        boxB = ttk.Labelframe(sub, text="Pasos / Operaciones", style="Card.TLabelframe", padding=6)
+        self.txt_log = tk.Text(boxB, height=14, wrap="word"); self.txt_log.pack(fill="both", expand=True)
+        sub.add(boxB, weight=1)
+
+    # -------- Tab 2: Suma de matrices --------
+    def _tab_suma(self):
+        tab = ttk.Frame(self.nb)
+        self.nb.add(tab, text="Suma")
+
+        frame = ttk.Frame(tab, padding=10); frame.pack(fill="both", expand=True)
+        size = ttk.Frame(frame); size.pack(fill="x")
+
+        ttk.Label(size, text="Filas:").pack(side="left")
+        self.su_r = tk.Spinbox(size, from_=1,to=12,width=5); self.su_r.delete(0,"end"); self.su_r.insert(0,"2"); self.su_r.pack(side="left", padx=6)
+        ttk.Label(size, text="Columnas:").pack(side="left")
+        self.su_c = tk.Spinbox(size, from_=1,to=12,width=5); self.su_c.delete(0,"end"); self.su_c.insert(0,"2"); self.su_c.pack(side="left", padx=6)
+        ttk.Button(size, text="Redimensionar",
+                   command=lambda: [self.suma_A.set_size(int(self.su_r.get()), int(self.su_c.get())),
+                                    self.suma_B.set_size(int(self.su_r.get()), int(self.su_c.get()))]
+                   ).pack(side="left", padx=10)
+
+        ttk.Label(frame, text="Matriz A", style="Title.TLabel").pack(anchor="w", pady=(8,2))
+        self.suma_A = MatrixInput(frame, rows=2, cols=2, allow_b=False); self.suma_A.pack(fill="x")
+        ttk.Label(frame, text="Matriz B", style="Title.TLabel").pack(anchor="w", pady=(8,2))
+        self.suma_B = MatrixInput(frame, rows=2, cols=2, allow_b=False); self.suma_B.pack(fill="x")
+
+        out = ttk.Panedwindow(frame, orient="horizontal"); out.pack(fill="both", expand=True, pady=8)
+        res_box = ttk.Labelframe(out, text="Resultado", style="Card.TLabelframe", padding=6)
+        self.suma_out = tk.Text(res_box, height=12, wrap="word"); self.suma_out.pack(fill="both", expand=True)
+        out.add(res_box, weight=1)
+
+        log_box = ttk.Labelframe(out, text="Pasos", style="Card.TLabelframe", padding=6)
+        self.suma_log = tk.Text(log_box, height=12, wrap="word"); self.suma_log.pack(fill="both", expand=True)
+        out.add(log_box, weight=1)
+
+        btns = ttk.Frame(frame); btns.pack(fill="x")
+        ttk.Button(btns, text="Calcular", style="Accent.TButton", command=self._calc_suma).pack(side="left")
+        ttk.Button(btns, text="Limpiar",
+                   command=lambda: [self.suma_A.clear(), self.suma_B.clear(),
+                                    self.suma_out.delete(1.0, tk.END), self.suma_log.delete(1.0, tk.END)]
+                   ).pack(side="left", padx=6)
+
+    def _calc_suma(self):
+        try:
+            A = self.suma_A.get_matrix(); B = self.suma_B.get_matrix()
+            R, pasos = sumar_matrices(A, B)
+        except Exception as e:
+            messagebox.showerror("Error", str(e)); return
+        self.suma_out.delete(1.0, tk.END); self.suma_out.insert(tk.END, formatear_matriz(R))
+        self.suma_log.delete(1.0, tk.END)
+        for p in pasos: self.suma_log.insert(tk.END, p + "\n")
+
+    # -------- Tab 3: Multiplicación --------
+    def _tab_mult(self):
+        tab = ttk.Frame(self.nb)
+        self.nb.add(tab, text="Multiplicación")
+
+        frame = ttk.Frame(tab, padding=10); frame.pack(fill="both", expand=True)
+        size = ttk.Frame(frame); size.pack(fill="x")
+
+        ttk.Label(size, text="Filas A:").pack(side="left")
+        self.mu_ar = tk.Spinbox(size, from_=1,to=12,width=5); self.mu_ar.delete(0,"end"); self.mu_ar.insert(0,"2"); self.mu_ar.pack(side="left", padx=6)
+        ttk.Label(size, text="Columnas A:").pack(side="left")
+        self.mu_ac = tk.Spinbox(size, from_=1,to=12,width=5); self.mu_ac.delete(0,"end"); self.mu_ac.insert(0,"2"); self.mu_ac.pack(side="left", padx=6)
+        ttk.Label(size, text="Filas B:").pack(side="left", padx=(10,0))
+        self.mu_br = tk.Spinbox(size, from_=1,to=12,width=5); self.mu_br.delete(0,"end"); self.mu_br.insert(0,"2"); self.mu_br.pack(side="left", padx=6)
+        ttk.Label(size, text="Columnas B:").pack(side="left")
+        self.mu_bc = tk.Spinbox(size, from_=1,to=12,width=5); self.mu_bc.delete(0,"end"); self.mu_bc.insert(0,"2"); self.mu_bc.pack(side="left", padx=6)
+
+        def resize_inputs():
             try:
-                r, c = int(spin_rows.get()), int(spin_cols.get())
+                ra, ca = int(self.mu_ar.get()), int(self.mu_ac.get())
+                rb, cb = int(self.mu_br.get()), int(self.mu_bc.get())
             except:
-                messagebox.showerror("Error", "Dimensiones inválidas");
-                return
-            inputA.set_size(r, c)
+                messagebox.showerror("Error","Dimensiones inválidas"); return
+            if ca != rb:
+                messagebox.showerror("Error","Para multiplicar: columnas de A deben coincidir con filas de B."); return
+            self.mult_A.set_size(ra, ca); self.mult_B.set_size(rb, cb)
 
-        ttk.Button(size_frame, text="Redimensionar", command=resize_input).pack(side="left", padx=10)
+        ttk.Button(size, text="Redimensionar", command=resize_inputs).pack(side="left", padx=10)
 
-        # Matrix input
-        ttk.Label(win, text="Matriz").pack(anchor="w")
-        inputA = MatrixInput(win, rows=2, cols=2, allow_b=False)
-        inputA.pack(fill="x", padx=8, pady=6)
+        ttk.Label(frame, text="Matriz A", style="Title.TLabel").pack(anchor="w", pady=(8,2))
+        self.mult_A = MatrixInput(frame, rows=2, cols=2, allow_b=False); self.mult_A.pack(fill="x")
+        ttk.Label(frame, text="Matriz B", style="Title.TLabel").pack(anchor="w", pady=(8,2))
+        self.mult_B = MatrixInput(frame, rows=2, cols=2, allow_b=False); self.mult_B.pack(fill="x")
 
-        txt_log = tk.Text(win, height=12, wrap="word");
-        txt_log.pack(fill="both", expand=True, padx=8, pady=6)
-        lbl_result = ttk.Label(win, text="—");
-        lbl_result.pack(anchor="w", padx=8, pady=6)
+        out = ttk.Panedwindow(frame, orient="horizontal"); out.pack(fill="both", expand=True, pady=8)
+        res_box = ttk.Labelframe(out, text="Resultado", style="Card.TLabelframe", padding=6)
+        self.mult_out = tk.Text(res_box, height=12, wrap="word"); self.mult_out.pack(fill="both", expand=True)
+        out.add(res_box, weight=1)
 
-        def calcular():
-            try:
-                A = inputA.get_matrix()
-                R = operation(A)
-            except Exception as e:
-                messagebox.showerror("Error", str(e))
-                return
-            lbl_result.config(text=formatear_matriz(R))
-            txt_log.delete(1.0, tk.END)
-            txt_log.insert(tk.END, "Transpuesta calculada.\n")
+        log_box = ttk.Labelframe(out, text="Pasos", style="Card.TLabelframe", padding=6)
+        self.mult_log = tk.Text(log_box, height=12, wrap="word"); self.mult_log.pack(fill="both", expand=True)
+        out.add(log_box, weight=1)
 
-        ttk.Button(win, text="Calcular", command=calcular).pack(side="left", padx=10, pady=10)
-        ttk.Button(win, text="Limpiar",
-                   command=lambda: [inputA.clear(), txt_log.delete(1.0, tk.END), lbl_result.config(text="—")]).pack(
-            pady=6)
+        btns = ttk.Frame(frame); btns.pack(fill="x")
+        ttk.Button(btns, text="Calcular", style="Accent.TButton", command=self._calc_mult).pack(side="left")
+        ttk.Button(btns, text="Limpiar",
+                   command=lambda: [self.mult_A.clear(), self.mult_B.clear(),
+                                    self.mult_out.delete(1.0, tk.END), self.mult_log.delete(1.0, tk.END)]
+                   ).pack(side="left", padx=6)
 
-    def Transpuesta_gui(self):
-        self.matriz_gui("Transpuesta de matrices", Transpuesta)
+    def _calc_mult(self):
+        try:
+            A = self.mult_A.get_matrix(); B = self.mult_B.get_matrix()
+            R, pasos = multiplicar_matrices(A, B)
+        except Exception as e:
+            messagebox.showerror("Error", str(e)); return
+        self.mult_out.delete(1.0, tk.END); self.mult_out.insert(tk.END, formatear_matriz(R))
+        self.mult_log.delete(1.0, tk.END)
+        for p in pasos: self.mult_log.insert(tk.END, p + "\n")
 
+    # -------- Tab 4: Escalar × Matriz (paso a paso) --------
+    def _tab_escalar(self):
+        tab = ttk.Frame(self.nb)
+        self.nb.add(tab, text="Escalar × Matriz")
 
-    # ============= Helpers y Gauss =============
+        frame = ttk.Frame(tab, padding=10); frame.pack(fill="both", expand=True)
+
+        top = ttk.Frame(frame); top.pack(fill="x")
+        ttk.Label(top, text="Filas:").pack(side="left")
+        self.es_r = tk.Spinbox(top, from_=1,to=12,width=5); self.es_r.pack(side="left", padx=4)
+        ttk.Label(top, text="Columnas:").pack(side="left")
+        self.es_c = tk.Spinbox(top, from_=1,to=12,width=5); self.es_c.pack(side="left", padx=4)
+        ttk.Label(top, text="Escalar:").pack(side="left")
+        self.es_val = ttk.Entry(top, width=10); self.es_val.pack(side="left", padx=6)
+        ttk.Button(top, text="Redimensionar",
+                   command=lambda: self.es_A.set_size(int(self.es_r.get()), int(self.es_c.get()))
+                   ).pack(side="left", padx=10)
+
+        self.es_A = MatrixInput(frame, rows=2, cols=2, allow_b=False); self.es_A.pack(fill="x", pady=8)
+
+        btns = ttk.Frame(frame); btns.pack(fill="x")
+        ttk.Button(btns, text="Calcular", style="Accent.TButton", command=self._escalar_calc).pack(side="left")
+        self.es_next = ttk.Button(btns, text="Siguiente paso", command=self._escalar_next, state="disabled")
+        self.es_next.pack(side="left", padx=6)
+        ttk.Button(btns, text="Exportar log", command=self._escalar_export).pack(side="left")
+
+        self.es_txt = tk.Text(frame, height=18, wrap="word"); self.es_txt.pack(fill="both", expand=True, pady=8)
+        self._es_pasos = []; self._es_idx = 0; self._es_resultado = []
+
+    def _escalar_calc(self):
+        try:
+            A = self.es_A.get_matrix()
+            esc = self.es_val.get()
+            R, pasos = multiplicar_escalar_matriz(esc, A)  # misma lógica
+        except Exception as e:
+            messagebox.showerror("Error", str(e)); return
+        self._es_resultado = R
+        self._es_pasos = pasos
+        self._es_idx = 0
+        self.es_txt.delete(1.0, tk.END)
+        self.es_txt.insert(tk.END, "Cálculo inicializado. Presione 'Siguiente paso'.\n")
+        self.es_next.config(state="normal")
+
+    def _escalar_next(self):
+        if self._es_idx < len(self._es_pasos):
+            self.es_txt.insert(tk.END, self._es_pasos[self._es_idx] + "\n\n")
+            self._es_idx += 1
+            if self._es_idx == len(self._es_pasos):
+                self.es_next.config(state="disabled")
+        else:
+            self.es_next.config(state="disabled")
+
+    def _escalar_export(self):
+        if not self._es_pasos:
+            messagebox.showinfo("Info", "No hay pasos para exportar."); return
+        fp = filedialog.asksaveasfilename(defaultextension=".txt",
+                                          filetypes=[("Texto","*.txt")],
+                                          title="Guardar registro de pasos")
+        if not fp: return
+        with open(fp, "w", encoding="utf-8") as f:
+            for i, p in enumerate(self._es_pasos, start=1):
+                f.write(f"Paso {i}: {p}\n\n")
+            f.write("Resultado final:\n")
+            for fila in self._es_resultado:
+                f.write(" ".join(str(x) for x in fila) + "\n")
+        messagebox.showinfo("Listo", f"Registro exportado a: {fp}")
+
+    # -------- Tab 5: Transpuesta --------
+    def _tab_transpuesta(self):
+        tab = ttk.Frame(self.nb)
+        self.nb.add(tab, text="Transpuesta")
+
+        frame = ttk.Frame(tab, padding=10); frame.pack(fill="both", expand=True)
+        size = ttk.Frame(frame); size.pack(fill="x")
+        ttk.Label(size, text="Filas:").pack(side="left")
+        self.tr_r = tk.Spinbox(size, from_=1,to=12,width=5); self.tr_r.delete(0,"end"); self.tr_r.insert(0,"2"); self.tr_r.pack(side="left", padx=6)
+        ttk.Label(size, text="Columnas:").pack(side="left")
+        self.tr_c = tk.Spinbox(size, from_=1,to=12,width=5); self.tr_c.delete(0,"end"); self.tr_c.insert(0,"2"); self.tr_c.pack(side="left", padx=6)
+        ttk.Button(size, text="Redimensionar",
+                   command=lambda: self.tr_A.set_size(int(self.tr_r.get()), int(self.tr_c.get()))
+                   ).pack(side="left", padx=10)
+
+        ttk.Label(frame, text="Matriz", style="Title.TLabel").pack(anchor="w", pady=(8,2))
+        self.tr_A = MatrixInput(frame, rows=2, cols=2, allow_b=False); self.tr_A.pack(fill="x")
+
+        ttk.Label(frame, text="Resultado", style="Title.TLabel").pack(anchor="w", pady=(8,2))
+        self.tr_out = tk.Text(frame, height=14, wrap="word"); self.tr_out.pack(fill="both", expand=True)
+
+        btns = ttk.Frame(frame); btns.pack(fill="x", pady=8)
+        ttk.Button(btns, text="Calcular", style="Accent.TButton", command=self._calc_transpuesta).pack(side="left")
+        ttk.Button(btns, text="Limpiar",
+                   command=lambda: [self.tr_A.clear(), self.tr_out.delete(1.0, tk.END)]
+                   ).pack(side="left", padx=6)
+
+    def _calc_transpuesta(self):
+        try:
+            A = self.tr_A.get_matrix()
+            R = Transpuesta(A)
+        except Exception as e:
+            messagebox.showerror("Error", str(e)); return
+        self.tr_out.delete(1.0, tk.END); self.tr_out.insert(tk.END, formatear_matriz(R))
+
+    # -------- Tab 6: Independencia Lineal (nueva) --------
+    def _tab_independencia(self):
+        tab = ttk.Frame(self.nb)
+        self.nb.add(tab, text="Independencia Lineal")
+
+        frame = ttk.Frame(tab, padding=10); frame.pack(fill="both", expand=True)
+
+        # Configuración de tamaño: filas (dimensión de vectores), columnas (cantidad de vectores)
+        size = ttk.Frame(frame); size.pack(fill="x")
+        ttk.Label(size, text="Dimensión (filas):").pack(side="left")
+        self.il_r = tk.Spinbox(size, from_=1,to=12,width=5); self.il_r.delete(0,"end"); self.il_r.insert(0,"3"); self.il_r.pack(side="left", padx=6)
+        ttk.Label(size, text="Cantidad de vectores (columnas):").pack(side="left", padx=(10,0))
+        self.il_c = tk.Spinbox(size, from_=1,to=12,width=5); self.il_c.delete(0,"end"); self.il_c.insert(0,"3"); self.il_c.pack(side="left", padx=6)
+        ttk.Button(size, text="Redimensionar",
+                   command=lambda: self.il_A.set_size(int(self.il_r.get()), int(self.il_c.get()))
+                   ).pack(side="left", padx=10)
+
+        # Entrada de matriz (cada columna es un vector)
+        ttk.Label(frame, text="Matriz (cada columna = vector)", style="Title.TLabel").pack(anchor="w", pady=(8,2))
+        # NOTA: allow_b=False porque trabajamos con sistema homogéneo A x = 0
+        self.il_A = MatrixInput(frame, rows=3, cols=3, allow_b=False); self.il_A.pack(fill="x")
+
+        out = ttk.Panedwindow(frame, orient="horizontal"); out.pack(fill="both", expand=True, pady=8)
+        # Vista de matriz reducida
+        res_box = ttk.Labelframe(out, text="Matriz reducida (Gauss-Jordan)", style="Card.TLabelframe", padding=6)
+        self.il_view = MatrixView(res_box); self.il_view.pack(fill="both", expand=True)
+        out.add(res_box, weight=1)
+
+        # Pasos y conclusión
+        log_box = ttk.Labelframe(out, text="Pasos y conclusión", style="Card.TLabelframe", padding=6)
+        self.il_log = tk.Text(log_box, height=16, wrap="word"); self.il_log.pack(fill="both", expand=True)
+        out.add(log_box, weight=1)
+
+        btns = ttk.Frame(frame); btns.pack(fill="x")
+        ttk.Button(btns, text="Analizar independencia", style="Accent.TButton", command=self._calc_independencia).pack(side="left")
+        ttk.Button(btns, text="Limpiar",
+                   command=lambda: [self.il_A.clear(), self.il_log.delete(1.0, tk.END), self.il_view.set_matrix([[Fraccion(0)]])]
+                   ).pack(side="left", padx=6)
+        ttk.Button(btns, text="Exportar pasos", command=self._il_export).pack(side="left", padx=6)
+
+        # almacenamiento temporal
+        self._il_engine = None
+
+    def _calc_independencia(self):
+        """
+        Construye el sistema homogéneo A x = 0 (añadiendo columna 0),
+        ejecuta Gauss-Jordan con el motor existente y muestra pasos + conclusión.
+        """
+        try:
+            A = self.il_A.get_matrix()  # matriz (dim x p) — columnas son vectores
+        except Exception as e:
+            messagebox.showerror("Entrada inválida", str(e)); return
+
+        # Si hay más vectores que dimensiones, por teorema es dependiente (p > n)
+        n_rows = len(A)
+        n_cols = len(A[0]) if A else 0
+        if n_cols == 0:
+            messagebox.showerror("Error", "La matriz no tiene columnas."); return
+
+        # Construir matriz aumentada para sistema homogéneo A x = 0
+        zero = Fraccion(0)
+        aug = []
+        for r in range(n_rows):
+            row = [A[r][c] for c in range(n_cols)]
+            row.append(zero)
+            aug.append(row)
+
+        # Inicializar motor Gauss-Jordan (reutilizando tu implementación)
+        engine = GaussJordanEngine(aug)
+        self._il_engine = engine
+
+        # Ejecutar hasta finalizar (guardamos pasos)
+        while not engine.terminado:
+            engine.siguiente()
+
+        # Mostrar pasos
+        self.il_log.delete(1.0, tk.END)
+        for i, s in enumerate(engine.log):
+            self.il_log.insert(tk.END, f"Paso {i+1}: {s.descripcion}\n")
+            self.il_log.insert(tk.END, formatear_matriz(s.matriz) + "\n\n")
+
+        # Mostrar matriz reducida
+        last = engine.log[-1] if engine.log else None
+        if last:
+            self.il_view.set_matrix(last.matriz)
+
+        # Analizar resultados
+        resultado = engine.analizar()
+        tipo, data, clasificacion = resultado
+
+        # Para sistema homogéneo A x = 0:
+        # - si solución trivial única => columnas de A son linealmente independientes
+        # - si solución no trivial (infinitas) => dependientes
+        conclusion = ""
+        if tipo == "única" and clasificacion.get("solucion", "") == "trivial":
+            conclusion = f"Conclusión: Las columnas (vectores) son LINEALMENTE INDEPENDIENTES.\n\nClasificación: {clasificacion}"
+        elif tipo == "inconsistente":
+            # teóricamente no debería pasar en homogéneo, pero lo cubrimos
+            conclusion = "Conclusión: El sistema es inconsistente (algo no esperado para homogéneo)."
+        else:
+            # infinitas -> dependencia
+            # mostrar relación de dependencia usando la representación paramétrica
+            sol_text = engine.conjunto_solucion(resultado)
+            conclusion = "Conclusión: Las columnas (vectores) son LINEALMENTE DEPENDIENTES.\n\n"
+            conclusion += "Relación(es) de dependencia (forma paramétrica / base del espacio nulo):\n"
+            conclusion += sol_text
+
+        self.il_log.insert(tk.END, "\n" + conclusion)
+        self.lbl_result.config(text="Independencia analizada.")
+        self._update_status("Análisis de independencia completado.")
+
+    def _il_export(self):
+        """Exporta los pasos generados en la pestaña de independencia."""
+        engine = self._il_engine
+        if not engine or not engine.log:
+            messagebox.showinfo("Información", "No hay pasos para exportar"); return
+        fp = filedialog.asksaveasfilename(defaultextension=".txt",
+                                          filetypes=[("Texto","*.txt")],
+                                          title="Guardar registro de pasos")
+        if not fp: return
+        with open(fp, "w", encoding="utf-8") as f:
+            for i, s in enumerate(engine.log, start=1):
+                f.write(f"Paso {i}: {s.descripcion}\n")
+                for fila in s.matriz:
+                    f.write(" [ " + " ".join(str(x) for x in fila[:-1]) + " | " + str(fila[-1]) + " ]\n")
+                f.write("\n")
+            # agregar conclusión final
+            resultado = engine.analizar()
+            f.write("\nConclusión final:\n")
+            f.write(engine.conjunto_solucion(resultado) + "\n")
+        messagebox.showinfo("Listo", f"Registro exportado a: {fp}")
+
+    # --------- Lógica Gauss-Jordan (igual que siempre) ---------
     def resize_matrix(self):
         try:
-            m=int(self.spin_m.get()); n=int(self.spin_n.get())
-            if m<=0 or n<=0: raise ValueError
-        except: messagebox.showerror("Error","Dimensiones inválidas"); return
-        self.matrix_input.set_size(m,n)
+            m, n = int(self.spin_m.get()), int(self.spin_n.get())
+            if m <= 0 or n <= 0: raise ValueError
+        except:
+            messagebox.showerror("Error", "Dimensiones inválidas"); return
+        self.matrix_input.set_size(m, n)
 
     def load_example(self):
-        ejemplo=[["1","1","1","6"], ["2","-1","1","3"], ["1","2","-1","3"]]
+        ejemplo = [["1","1","1","6"], ["2","-1","1","3"], ["1","2","-1","3"]]
         self.matrix_input.set_size(3,3)
         for i in range(3):
             for j in range(4):
-                self.matrix_input.entries[i][j].delete(0,tk.END)
+                self.matrix_input.entries[i][j].delete(0, tk.END)
                 self.matrix_input.entries[i][j].insert(0, ejemplo[i][j])
 
     def clear_inputs(self):
@@ -228,261 +584,87 @@ class MainApp(tk.Tk):
         self.lbl_result.config(text="—")
 
     def start_engine(self):
-        try: A=self.matrix_input.get_matrix()
-        except Exception as e: messagebox.showerror("Entrada inválida",str(e)); return
-        self.engine=GaussJordanEngine(A)
+        try:
+            A = self.matrix_input.get_matrix()
+        except Exception as e:
+            messagebox.showerror("Entrada inválida", str(e)); return
+        self.engine = GaussJordanEngine(A)
         self._render_last_step()
         self._log("Inicializado. Use 'Siguiente paso' o 'Reproducir'.")
         self._update_status("Listo para ejecutar.")
 
     def next_step(self):
-        if not self.engine: messagebox.showinfo("Información","Primero presione 'Resolver (inicializar)'"); return
-        step=self.engine.siguiente()
-        if step is None: self._log("No hay más pasos.")
+        if not self.engine:
+            messagebox.showinfo("Información", "Primero presione 'Resolver (inicializar)'"); return
+        step = self.engine.siguiente()
+        if step is None:
+            self._log("No hay más pasos.")
         self._render_last_step()
-        if self.engine.terminado: self._show_result()
+        if self.engine.terminado:
+            self._show_result()
 
     def toggle_auto(self):
-        if not self.engine: messagebox.showinfo("Información","Primero presione 'Resolver (inicializar)'"); return
+        if not self.engine:
+            messagebox.showinfo("Información", "Primero presione 'Resolver (inicializar)'"); return
         if not self.auto_running:
-            self.auto_running=True
-            self.btn_auto.config(text="Pausar")
-            self.auto_thread=threading.Thread(target=self._auto_run, daemon=True)
+            self.auto_running = True
+            if self.btn_auto: self.btn_auto.config(text="Pausar")
+            self.auto_thread = threading.Thread(target=self._auto_run, daemon=True)
             self.auto_thread.start()
         else:
-            self.auto_running=False
-            self.btn_auto.config(text="Reproducir")
+            self.auto_running = False
+            if self.btn_auto: self.btn_auto.config(text="Reproducir")
 
     def _auto_run(self):
         while self.auto_running and self.engine and not self.engine.terminado:
             self.next_step()
-            time.sleep(1.2)
-        self.auto_running=False
-        self.btn_auto.config(text="Reproducir")
+            time.sleep(1.0)
+        self.auto_running = False
+        if self.btn_auto: self.btn_auto.config(text="Reproducir")
 
     def reset(self):
-        self.engine=None
+        self.engine = None
         self.txt_log.delete(1.0, tk.END)
         self.matrix_view.set_matrix([[Fraccion(0)]])
         self.lbl_result.config(text="—")
         self._update_status("Reiniciado.")
 
     def export_log(self):
-        if not self.engine or not self.engine.log: messagebox.showinfo("Información","No hay pasos para exportar"); return
-        fp=filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Texto","*.txt")], title="Guardar registro de pasos")
+        if not self.engine or not self.engine.log:
+            messagebox.showinfo("Información", "No hay pasos para exportar"); return
+        fp = filedialog.asksaveasfilename(defaultextension=".txt",
+                                          filetypes=[("Texto","*.txt")],
+                                          title="Guardar registro de pasos")
         if not fp: return
-        with open(fp,'w',encoding='utf-8') as f:
-            for i,s in enumerate(self.engine.log,start=1):
+        with open(fp, "w", encoding="utf-8") as f:
+            for i, s in enumerate(self.engine.log, start=1):
                 f.write(f"Paso {i}: {s.descripcion}\n")
                 for fila in s.matriz:
-                    f.write(" [ "+ " ".join(str(x) for x in fila[:-1]) + " | " + str(fila[-1]) + " ]\n")
+                    f.write(" [ " + " ".join(str(x) for x in fila[:-1]) + " | " + str(fila[-1]) + " ]\n")
                 f.write("\n")
         messagebox.showinfo("Listo", f"Registro exportado a: {fp}")
 
     def _render_last_step(self):
         if not self.engine or not self.engine.log: return
-        step=self.engine.log[-1]
+        step = self.engine.log[-1]
         self.matrix_view.set_matrix(step.matriz)
         self.matrix_view.highlight(step.pivote_row, step.pivote_col)
         self._log(step.descripcion)
 
-    def _log(self,text): self.txt_log.insert(tk.END, text+"\n"); self.txt_log.see(tk.END)
+    def _log(self, text):
+        self.txt_log.insert(tk.END, text + "\n")
+        self.txt_log.see(tk.END)
+
     def _show_result(self):
-        tipo,data=self.engine.analizar()
-        if tipo=="inconsistente": msg="El sistema es INCONSISTENTE: no tiene solución."
-        elif tipo=="única": msg="Solución ÚNICA:\n " + "\n ".join(f"x{i+1}={v}" for i,v in enumerate(data))
-        else:
-            libres, base = data
-            txt = ["Infinitas soluciones:"]
-            if libres:
-                txt.append(" Variables libres: " + ", ".join(f"x{j + 1}" for j in libres))
-            # Show dependent variables in terms of free variables
-            n = len(base[0]) if base else 0
-            for i in range(n):
-                if i not in libres:
-                    expr = []
-                    for idx, j in enumerate(libres):
-                        coef = base[idx][i]
-                        if coef != 0:
-                            term = f"{coef}·x{j + 1}" if coef != 1 else f"x{j + 1}"
-                            expr.append(term)
-                    if expr:
-                        txt.append(f" x{i + 1} = " + " + ".join(expr))
-            txt.append(" Base del espacio nulo:")
-            for k, vec in enumerate(base, start=1):
-                txt.append(" v" + str(k) + " = (" + ", ".join(str(x) for x in vec) + ")")
-            msg = "\n".join(txt)
+        if not self.engine: return
+        resultado = self.engine.analizar()
+        msg = self.engine.conjunto_solucion(resultado)
         self.lbl_result.config(text=msg)
         self._update_status("Cálculo finalizado.")
 
-    def _update_status(self,s): self.status.config(text=s)
-
-    # ================== SUMA / MULTIPLICACION  / TRANSPUESTA   ================== #
-    def abrir_escalar(self):
-        EscalarStepApp()
-    def sumar_gui(self):
-        self.matrices_gui("Sumar matrices", sumar_matrices, suma=True)
-
-    def Transpuesta_gui(self):
-        self.matriz_gui("Transpuesta de matrices", Transpuesta)
-
-    def multiplicar_gui(self):
-        self.matrices_gui("Multiplicar matrices", multiplicar_matrices, suma=False)
-
-    def matrices_gui(self, title, operation, suma=False):
-        win=tk.Toplevel(self)
-        win.title(title)
-        win.geometry("700x550")
-
-        # Selección de tamaños
-        size_frame=ttk.Frame(win); size_frame.pack(fill="x", padx=8, pady=4)
-        ttk.Label(size_frame, text="Filas A:").pack(side="left")
-        spin_A_rows=tk.Spinbox(size_frame, from_=1,to=8,width=5); spin_A_rows.delete(0,"end"); spin_A_rows.insert(0,"2"); spin_A_rows.pack(side="left")
-        ttk.Label(size_frame, text="Columnas A:").pack(side="left")
-        spin_A_cols=tk.Spinbox(size_frame, from_=1,to=8,width=5); spin_A_cols.delete(0,"end"); spin_A_cols.insert(0,"2"); spin_A_cols.pack(side="left")
-
-        ttk.Label(size_frame, text="Filas B:").pack(side="left", padx=(10,0))
-        spin_B_rows=tk.Spinbox(size_frame, from_=1,to=8,width=5); spin_B_rows.delete(0,"end"); spin_B_rows.insert(0,"2"); spin_B_rows.pack(side="left")
-        ttk.Label(size_frame, text="Columnas B:").pack(side="left")
-        spin_B_cols=tk.Spinbox(size_frame, from_=1,to=8,width=5); spin_B_cols.delete(0,"end"); spin_B_cols.insert(0,"2"); spin_B_cols.pack(side="left")
-
-        def resize_inputs():
-            try:
-                ra,ca=int(spin_A_rows.get()), int(spin_A_cols.get())
-                rb,cb=int(spin_B_rows.get()), int(spin_B_cols.get())
-            except:
-                messagebox.showerror("Error","Dimensiones inválidas"); return
-
-            if suma and (ra!=rb or ca!=cb):
-                messagebox.showerror("Error","Para la suma, ambas matrices deben tener la misma dimensión.")
-                return
-            if not suma and ca!=rb:
-                messagebox.showerror("Error","Para la multiplicación: columnas de A deben coincidir con filas de B.")
-                return
-
-            inputA.set_size(ra,ca)
-            inputB.set_size(rb,cb)
-
-        ttk.Button(size_frame, text="Redimensionar", command=resize_inputs).pack(side="left", padx=10)
-
-        # Entradas
-        ttk.Label(win,text="Matriz A").pack(anchor="w")
-        inputA=MatrixInput(win, rows=2, cols=2, allow_b=False)
-        inputA.pack(fill="x", padx=8,pady=6)
-
-        ttk.Label(win,text="Matriz B").pack(anchor="w")
-        inputB=MatrixInput(win, rows=2, cols=2, allow_b=False)
-        inputB.pack(fill="x", padx=8,pady=6)
-
-        txt_log=tk.Text(win,height=12, wrap="word"); txt_log.pack(fill="both", expand=True, padx=8,pady=6)
-        lbl_result=ttk.Label(win, text="—"); lbl_result.pack(anchor="w", padx=8,pady=6)
-
-        def calcular():
-            try:
-                A=inputA.get_matrix(); B=inputB.get_matrix()
-                R,pasos=operation(A,B)
-            except Exception as e:
-                messagebox.showerror("Error",str(e))
-                return
-            lbl_result.config(text=formatear_matriz(R))
-            txt_log.delete(1.0, tk.END)
-            for p in pasos: txt_log.insert(tk.END,p+"\n")
-
-        ttk.Button(win,text="Calcular", command=calcular).pack(side="left", padx=10,pady=10)
-        ttk.Button(win,text="Limpiar", command=lambda:[inputA.clear(), inputB.clear(), txt_log.delete(1.0,tk.END), lbl_result.config(text="—")]).pack(pady=6)
+    def _update_status(self, s):
+        self.status.config(text=s)
 
 
-# ================== Multiplicacion de escalar ==========================
-
-class EscalarStepApp(tk.Toplevel):
-    """Ventana para multiplicar escalar por matriz paso a paso"""
-    def __init__(self):
-        super().__init__()
-        self.title("Multiplicar escalar por matriz")
-        self.geometry("900x600")
-        self.pasos = []
-        self.resultado = []
-        self.step_idx = 0
-        self.build_ui()
-
-    def build_ui(self):
-        top = ttk.Frame(self)
-        top.pack(fill="x", padx=10, pady=6)
-        ttk.Label(top, text="Filas:").pack(side="left")
-        self.spin_r = tk.Spinbox(top, from_=1, to=12, width=5)
-        self.spin_r.pack(side="left", padx=4)
-        ttk.Label(top, text="Columnas:").pack(side="left")
-        self.spin_c = tk.Spinbox(top, from_=1, to=12, width=5)
-        self.spin_c.pack(side="left", padx=4)
-        ttk.Label(top, text="Escalar:").pack(side="left")
-        self.entry_escalar = ttk.Entry(top, width=10)
-        self.entry_escalar.pack(side="left", padx=4)
-        ttk.Button(top, text="Redimensionar", command=self.redim).pack(side="left", padx=6)
-
-        self.frame_matrices = ttk.Frame(self)
-        self.frame_matrices.pack(fill="both", expand=True)
-
-        self.matrixA = MatrixInput(self.frame_matrices, rows=2, cols=2, allow_b=False)
-        self.matrixA.grid(row=0, column=0, padx=8, pady=8)
-
-        actions = ttk.Frame(self)
-        actions.pack(fill="x", padx=10, pady=6)
-        ttk.Button(actions, text="Calcular", command=self.calcular).pack(side="left", padx=4)
-        self.btn_step = ttk.Button(actions, text="Siguiente paso", command=self.siguiente_paso, state="disabled")
-        self.btn_step.pack(side="left", padx=4)
-        ttk.Button(actions, text="Exportar log", command=self.export_log).pack(side="left", padx=4)
-
-        self.txt_log = tk.Text(self, height=20)
-        self.txt_log.pack(fill="both", expand=True, padx=10, pady=8)
-
-    def redim(self):
-        r = int(self.spin_r.get())
-        c = int(self.spin_c.get())
-        self.matrixA.set_size(r,c)
-
-    def calcular(self):
-        try:
-            A = self.matrixA.get_matrix()
-            escalar = self.entry_escalar.get()
-            R, pasos = multiplicar_escalar_matriz(escalar, A)
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-            return
-        self.resultado = R
-        self.pasos = pasos
-        self.step_idx = 0
-        self.txt_log.delete(1.0, tk.END)
-        self.txt_log.insert(tk.END, "Cálculo inicializado. Presione 'Siguiente paso'.\n")
-        self.btn_step.config(state="normal")
-
-    def siguiente_paso(self):
-        if self.step_idx < len(self.pasos):
-            self.txt_log.insert(tk.END, self.pasos[self.step_idx]+"\n\n")
-            self.step_idx += 1
-            if self.step_idx == len(self.pasos):
-                self.btn_step.config(state="disabled")
-        else:
-            self.btn_step.config(state="disabled")
-
-    def export_log(self):
-        if not self.pasos:
-            messagebox.showinfo("Info","No hay pasos para exportar.")
-            return
-        fp = filedialog.asksaveasfilename(defaultextension=".txt",
-                                          filetypes=[("Texto","*.txt")],
-                                          title="Guardar registro de pasos")
-        if not fp:
-            return
-        with open(fp,"w",encoding="utf-8") as f:
-            for i,p in enumerate(self.pasos,start=1):
-                f.write(f"Paso {i}: {p}\n\n")
-            f.write("Resultado final:\n")
-            for fila in self.resultado:
-                f.write(" ".join(str(x) for x in fila)+"\n")
-        messagebox.showinfo("Listo", f"Registro exportado a: {fp}")
-
-
-if __name__=="__main__":
-    app=MainApp()
-    app.mainloop()
-
+if __name__ == "__main__":
+    App().mainloop()

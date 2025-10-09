@@ -1,6 +1,4 @@
-# gauss.py
 from fraccion import Fraccion
-
 from dataclasses import dataclass
 
 @dataclass
@@ -66,7 +64,7 @@ class GaussJordanEngine:
             self.col_pivotes.append(c)
             self.fila += 1
             return self.log[-1]
-        self._snapshot("Fin Gauss‑Jordan", None, None)
+        self._snapshot("Fin Gauss-Jordan", None, None)
         self.terminado = True
         return self.log[-1]
 
@@ -74,19 +72,40 @@ class GaussJordanEngine:
         return len(self.col_pivotes)
 
     def analizar(self):
+        """
+        Analiza el sistema y devuelve:
+        - tipo: inconsistente | única | infinitas
+        - solucion o información adicional
+        - clasificacion: homogéneo / no homogéneo, trivial / no trivial
+        """
         A = self.A
         m, n = self.m, self.n
+
+        # Determinar si es homogéneo (columna independiente = 0)
+        es_homogeneo = all(A[i][n].es_cero() for i in range(m))
+
+        # Revisar inconsistencia
         for i in range(m):
             if all(A[i][j].es_cero() for j in range(n)) and not A[i][n].es_cero():
-                return ("inconsistente", None)
+                return ("inconsistente", None,
+                        {"tipo": "no homogéneo", "solucion": "ninguna"})
+
+        # Caso de solución única
         if len([x for x in self.col_pivotes if x is not None]) == n:
             sol = [A[i][n] for i in range(n)]
-            return ("única", sol)
+            clasificacion = {
+                "tipo": "homogéneo" if es_homogeneo else "no homogéneo",
+                "solucion": "trivial" if es_homogeneo and all(s.es_cero() for s in sol) else "única"
+            }
+            return ("única", sol, clasificacion)
+
+        # Caso de infinitas soluciones
         libres = [j for j in range(n) if j not in self.col_pivotes]
         particular = [Fraccion(0) for _ in range(n)]
         for i, pc in enumerate(self.col_pivotes):
             if pc is not None:
                 particular[pc] = A[i][n]
+
         base = []
         for f in libres:
             vec = [Fraccion(0) for _ in range(n)]
@@ -95,4 +114,35 @@ class GaussJordanEngine:
                 if pc is not None:
                     vec[pc] = -A[i][f]
             base.append(vec)
-        return ("infinitas", ( libres, base))
+
+        clasificacion = {
+            "tipo": "homogéneo" if es_homogeneo else "no homogéneo",
+            "solucion": "no trivial"
+        }
+        return ("infinitas", (particular, libres, base), clasificacion)
+
+    def conjunto_solucion(self, resultado):
+        """
+        Devuelve una representación del conjunto solución en forma paramétrica.
+        Reemplaza t1, t2... por x1, x2, x3...
+        """
+        tipo, data, clasificacion = resultado
+        if tipo == "inconsistente":
+            return "El sistema es inconsistente. No tiene solución."
+
+        if tipo == "única":
+            sol = data
+            sol_text = ", ".join(str(s) for s in sol)
+            return f"Solución única:\n(x1, x2, ..., xn) = ({sol_text})\nClasificación: {clasificacion}"
+
+        if tipo == "infinitas":
+            particular, libres, base = data
+            out = "Solución general:\n"
+            part_str = "(" + ", ".join(str(x) for x in particular) + ")"
+            out += f"x = {part_str}"
+            for j, v in enumerate(base):
+                param = f"x{libres[j]+1}"  # reemplazo de t1 → x1, t2 → x2...
+                vec_str = "(" + ", ".join(str(x) for x in v) + ")"
+                out += f" + {param}*{vec_str}"
+            out += f"\nClasificación: {clasificacion}"
+            return out
