@@ -506,19 +506,68 @@ def regla_cramer(A, b):
 
     return solucion, pasos
 
-# ====== PRUEBAS RÁPIDAS ======
-if __name__ == "__main__":
-    A = [[Fraccion(1), Fraccion(2)], [Fraccion(3), Fraccion(4)]]
-    B = [[Fraccion(2), Fraccion(0)], [Fraccion(1), Fraccion(2)]]
+def determinante_sarrus(matriz):
+    """Calcula el determinante de una matriz cuadrada NxN usando Sarrus generalizado."""
+    n = len(matriz)
+    if any(len(fila) != n for fila in matriz):
+        raise ValueError("La matriz debe ser cuadrada para aplicar la regla de Sarrus.")
 
-    print("=== Suma de matrices ===")
-    S, pasos_suma = sumar_matrices(A, B)
-    for p in pasos_suma:
-        print(p)
-    print("Resultado:", [[str(x) for x in fila] for fila in S])
+    # Convertir a Fracciones
+    m = [[Fraccion(float(x)) if not isinstance(x, Fraccion) else x for x in fila] for fila in matriz]
 
-    print("\n=== Multiplicación de matrices ===")
-    M, pasos_mult = multiplicar_matrices(A, B)
-    for p in pasos_mult:
-        print(p)
-    print("Resultado:", [[str(x) for x in fila] for fila in M])
+    pasos = []
+
+    # Si es 3x3, usamos la Sarrus clásica
+    if n == 3:
+        diag_principal = [
+            (m[0][0], m[1][1], m[2][2]),
+            (m[0][1], m[1][2], m[2][0]),
+            (m[0][2], m[1][0], m[2][1])
+        ]
+        diag_secundaria = [
+            (m[0][2], m[1][1], m[2][0]),
+            (m[0][0], m[1][2], m[2][1]),
+            (m[0][1], m[1][0], m[2][2])
+        ]
+
+        suma_principal = []
+        suma_secundaria = []
+
+        for diag in diag_principal:
+            prod = diag[0] * diag[1] * diag[2]
+            suma_principal.append(prod)
+            pasos.append(f"({diag[0]}*{diag[1]}*{diag[2]}) = {prod}")
+
+        for diag in diag_secundaria:
+            prod = diag[0] * diag[1] * diag[2]
+            suma_secundaria.append(prod)
+            pasos.append(f"- ({diag[0]}*{diag[1]}*{diag[2]}) = -{prod}")
+
+        resultado = sum(suma_principal, Fraccion(0)) - sum(suma_secundaria, Fraccion(0))
+        pasos.append(f"\nDeterminante = ({' + '.join(str(p) for p in suma_principal)}) - ({' + '.join(str(p) for p in suma_secundaria)}) = {resultado}")
+        return resultado, pasos
+
+    # Si es NxN, generalización: sumas de permutaciones positivas y negativas
+    from itertools import permutations
+    indices = range(n)
+    suma_pos, suma_neg = [], []
+
+    for perm in permutations(indices):
+        signo = 1
+        for i in range(n):
+            for j in range(i + 1, n):
+                if perm[i] > perm[j]:
+                    signo *= -1
+        producto = Fraccion(1)
+        for i in range(n):
+            producto *= m[i][perm[i]]
+        if signo == 1:
+            suma_pos.append(producto)
+            pasos.append(f"(+) {'*'.join(str(m[i][perm[i]]) for i in range(n))} = {producto}")
+        else:
+            suma_neg.append(producto)
+            pasos.append(f"(-) {'*'.join(str(m[i][perm[i]]) for i in range(n))} = -{producto}")
+
+    resultado = sum(suma_pos, Fraccion(0)) - sum(suma_neg, Fraccion(0))
+    pasos.append(f"\nDeterminante = ({' + '.join(str(p) for p in suma_pos)}) - ({' + '.join(str(p) for p in suma_neg)}) = {resultado}")
+    return resultado, pasos

@@ -2,12 +2,11 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import threading, time
-
 from fraccion import Fraccion
 from gauss import GaussJordanEngine
 from matrices import (
     sumar_matrices, multiplicar_matrices,
-    multiplicar_escalar_matriz, formatear_matriz, Transpuesta, determinante_matriz, determinante_cofactores
+    multiplicar_escalar_matriz, formatear_matriz, Transpuesta, determinante_matriz, determinante_cofactores, determinante_sarrus
 )
 
 # ------------------ Widgets reutilizables ------------------
@@ -162,6 +161,7 @@ class App(tk.Tk):
         self._tab_inversa()
         self._tab_determinante()
         self._tab_cramer()
+        self._tab_sarrus()
 
 
         # Resultado general + estado
@@ -1152,6 +1152,130 @@ class App(tk.Tk):
 
         return solucion, pasos
 
+    def _tab_sarrus(self):
+        tab = ttk.Frame(self.nb)
+        self.nb.add(tab, text="Determinante (Sarrus)")
+
+        frame = ttk.Frame(tab, padding=10)
+        frame.pack(fill="both", expand=True)
+
+        # ---- Controles de tamaño ----
+        size = ttk.Frame(frame)
+        size.pack(fill="x")
+        ttk.Label(size, text="Tamaño (n×n):").pack(side="left")
+        self.sarrus_n = tk.Spinbox(size, from_=2, to=6, width=5)
+        self.sarrus_n.delete(0, "end")
+        self.sarrus_n.insert(0, "3")
+        self.sarrus_n.pack(side="left", padx=6)
+
+        ttk.Button(size, text="Redimensionar", command=self._sarrus_resize).pack(side="left", padx=10)
+
+        # ---- Matriz ----
+        matrix_frame = ttk.Frame(frame)
+        matrix_frame.pack(fill="x", pady=8)
+
+        left_mat = ttk.Frame(matrix_frame)
+        left_mat.pack(fill="x", expand=True)
+        ttk.Label(left_mat, text="Matriz A (cuadrada)", style="Title.TLabel").pack(anchor="w")
+        self.sarrus_A = MatrixInput(left_mat, rows=3, cols=3, allow_b=False)
+        self.sarrus_A.pack(fill="x")
+
+        # ---- Salidas: Resultado y Pasos ----
+        out = ttk.Panedwindow(frame, orient="horizontal")
+        out.pack(fill="both", expand=True, pady=8)
+
+        res_box = ttk.Labelframe(out, text="Determinante", style="Card.TLabelframe", padding=6)
+        self.sarrus_out = tk.Text(res_box, height=12, wrap="word")
+        self.sarrus_out.pack(fill="both", expand=True)
+        out.add(res_box, weight=1)
+
+        log_box = ttk.Labelframe(out, text="Pasos del método de Sarrus", style="Card.TLabelframe", padding=6)
+        self.sarrus_log = tk.Text(log_box, height=12, wrap="word")
+        self.sarrus_log.pack(fill="both", expand=True)
+        out.add(log_box, weight=1)
+
+        # ---- Botones ----
+        btns = ttk.Frame(frame)
+        btns.pack(fill="x", pady=8)
+        ttk.Button(btns, text="Calcular determinante", style="Accent.TButton",
+                   command=self._calc_sarrus).pack(side="left")
+        ttk.Button(btns, text="Limpiar",
+                   command=lambda: [self.sarrus_A.clear(),
+                                    self.sarrus_out.delete(1.0, tk.END),
+                                    self.sarrus_log.delete(1.0, tk.END)]
+                   ).pack(side="left", padx=6)
+        ttk.Button(btns, text="Ejemplo 3×3",
+                   command=self._sarrus_example_3x3).pack(side="left", padx=6)
+        ttk.Button(btns, text="Ejemplo 4×4",
+                   command=self._sarrus_example_4x4).pack(side="left", padx=6)
+
+    def _sarrus_resize(self):
+        try:
+            n = int(self.sarrus_n.get())
+            if n <= 1:
+                raise ValueError
+        except:
+            messagebox.showerror("Error", "Tamaño inválido, debe ser al menos 2x2")
+            return
+        self.sarrus_A.set_size(n, n)
+
+    def _sarrus_example_3x3(self):
+        self.sarrus_n.delete(0, tk.END)
+        self.sarrus_n.insert(0, "3")
+        self._sarrus_resize()
+        A_entries = [["1", "2", "3"],
+                     ["0", "4", "5"],
+                     ["1", "0", "6"]]
+        for i in range(3):
+            for j in range(3):
+                self.sarrus_A.entries[i][j].delete(0, tk.END)
+                self.sarrus_A.entries[i][j].insert(0, A_entries[i][j])
+
+    def _sarrus_example_4x4(self):
+        self.sarrus_n.delete(0, tk.END)
+        self.sarrus_n.insert(0, "4")
+        self._sarrus_resize()
+        A_entries = [["1", "2", "1", "3"],
+                     ["0", "1", "4", "2"],
+                     ["2", "0", "1", "5"],
+                     ["1", "3", "2", "0"]]
+        for i in range(4):
+            for j in range(4):
+                self.sarrus_A.entries[i][j].delete(0, tk.END)
+                self.sarrus_A.entries[i][j].insert(0, A_entries[i][j])
+
+    def _calc_sarrus(self):
+        from matrices import determinante_sarrus, formatear_matriz
+        try:
+            A = self.sarrus_A.get_matrix()
+        except Exception as e:
+            messagebox.showerror("Entrada inválida", str(e))
+            return
+
+        n = len(A)
+        if n == 0 or len(A[0]) != n:
+            messagebox.showerror("Error", "La matriz debe ser cuadrada")
+            return
+
+        # Limpiar salidas
+        self.sarrus_out.delete(1.0, tk.END)
+        self.sarrus_log.delete(1.0, tk.END)
+
+        try:
+            resultado, pasos = determinante_sarrus(A)
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+            return
+
+        # Mostrar pasos
+        self.sarrus_log.insert(tk.END, "Cálculo del determinante por Sarrus:\n\n")
+        self.sarrus_log.insert(tk.END, formatear_matriz(A) + "\n\n")
+        for p in pasos:
+            self.sarrus_log.insert(tk.END, p + "\n\n")
+
+        # Mostrar resultado
+        self.sarrus_out.insert(tk.END, f"Determinante de A:\n\n{resultado}\n")
+        self._update_status("Determinante calculado correctamente con Sarrus.")
 
 
 if __name__ == "__main__":
