@@ -8,6 +8,77 @@ from matrices import (
     sumar_matrices, multiplicar_matrices,
     multiplicar_escalar_matriz, formatear_matriz, Transpuesta, determinante_matriz, determinante_cofactores, determinante_sarrus
 )
+TEXT_BG = "#1E1E1E"
+TEXT_FG = "#FFFFFF"
+TEXT_FONT = ("Cascadia Code", 10)
+
+def make_text(parent, height=12, wrap="word", font=TEXT_FONT):
+    return tk.Text(parent,
+                   background=TEXT_BG,
+                   foreground=TEXT_FG,
+                   insertbackground=TEXT_FG,
+                   font=font,
+                   height=height,
+                   wrap=wrap)
+def configurar_estilo_oscuro(root):
+    style = ttk.Style(root)
+    try:
+        style.theme_use("clam")
+    except:
+        pass
+
+    # Colores base
+    fondo = "#1e1e1e"
+    texto = "#ffffff"
+    acento = "#4fc3f7"
+    borde = "#5c5f61"
+
+    # Fuente global
+    fuente = ("Times New Roman", 10)
+
+    root.configure(bg=fondo)
+
+    # General
+    style.configure(".", background=fondo, foreground=texto, font=fuente)
+    style.configure("TLabel", background=fondo, foreground=texto)
+    style.configure("TFrame", background=fondo)
+    style.configure("TLabelframe", background=fondo, foreground=texto, bordercolor=borde)
+    style.configure("TLabelframe.Label", background=fondo, foreground=acento)
+    style.configure("TButton", background=fondo, foreground=texto, padding=6, font=("Times New Roman", 10), borderwidth=1 , bordercolor = borde)
+    style.map("TButton",
+              background=[("active", acento), ("pressed", texto)],
+              foreground=[("active", "#000000")])
+    # --- Treeview (tablas de matrices) ---
+    style.configure("Treeview",
+                    background="#1E1E1E",      # fondo normal oscuro
+                    fieldbackground="#1E1E1E",
+                    foreground="#FFFFFF",       # texto blanco normal
+                    font=("Cascadia Code", 10))
+    style.map("Treeview",
+              background=[("selected", "#2563EB")],  # azul de selección
+              foreground=[("selected", "#000000")])  # texto negro al seleccionar
+
+    # --- Card.TLabelframe (secciones de resultados y pasos) ---
+    style.configure("Card.TLabelframe",
+                    background="#1E1E1E",  # fondo oscuro
+                    bordercolor="#3C3C3C",  # borde gris oscuro
+                    relief="solid")
+
+    style.configure("Card.TLabelframe.Label",
+                    background="#1E1E1E",  # fondo oscuro del título
+                    foreground="#FFFFFF",  # texto blanco
+                    font=("Cascadia Code", 10, "bold"))
+
+    # Campos de entrada
+    style.configure("TEntry", fieldbackground="#1e1e1e", foreground=texto, insertcolor=texto)
+    style.configure("TSpinbox", fieldbackground="#1e1e1e", foreground=texto, insertcolor=texto)
+    style.configure("TNotebook", background=fondo, tabmargins=[2, 5, 2, 0])
+    style.configure("TNotebook.Tab", background=fondo, foreground=texto, padding=[8, 4])
+    style.map("TNotebook.Tab", background=[("selected", acento)], foreground=[("selected", "#000000")])
+
+    # Checkbuttons y radiobuttons
+    style.configure("TCheckbutton", background=fondo, foreground=texto, font=fuente)
+    style.configure("TRadiobutton", background=fondo, foreground=texto, font=fuente)
 
 # ------------------ Widgets reutilizables ------------------
 
@@ -91,7 +162,7 @@ class MatrixView(ttk.Frame):
 
     def highlight(self, row=None, col=None):
         style = ttk.Style(self)
-        style.map("Treeview", background=[("selected", "#D9ECFF")])
+        style.map("Treeview", background=[("selected", "#0094f7")])
         if row is not None:
             try:
                 iid = self.tree.get_children()[row]
@@ -109,7 +180,7 @@ class App(tk.Tk):
         self.title("Soluciones de Álgebra Lineal")
         self.geometry("1100x720")
         self.minsize(1000, 640)
-        self._setup_style()
+        configurar_estilo_oscuro(self)
 
         self.engine = None
         self.auto_running = False
@@ -121,31 +192,31 @@ class App(tk.Tk):
     # -------- Estilos (solo UI) --------
     def _setup_style(self):
         style = ttk.Style(self)
-        try: style.theme_use("clam")
+        try: style.theme_use("equilux")
         except: pass
         primary = "#2563EB"
         surface = "#F5F7FB"
         border  = "#E3E8F0"
 
-        style.configure(".", font=("Segoe UI", 10))
+        style.configure(".", font=("Times New Roman", 10))
         style.configure("TFrame", background=surface)
-        style.configure("Toolbar.TFrame", background="white")
-        style.configure("Card.TLabelframe", background="white", bordercolor=border)
-        style.configure("Card.TLabelframe.Label", background="white", foreground="#334155",
-                        font=("Segoe UI Semibold", 10))
-        style.configure("Title.TLabel", font=("Segoe UI Semibold", 11))
-        style.configure("Status.TLabel", background="#F8FAFC", anchor="w")
+        style.configure("Toolbar.TFrame")
+        style.configure("Card.TLabelframe", bordercolor=border)
+        style.configure("Card.TLabelframe.Label", foreground="#334155",
+                        font=("Times New Roman", 10))
+        style.configure("Title.TLabel", font=("Times New Roman", 12))
+        style.configure("Status.TLabel", background="#2563EB", anchor="w")
         style.configure("Accent.TButton", padding=6)
         style.map("Accent.TButton",
-                  background=[("!disabled", primary), ("pressed", "#1D4ED8")],
-                  foreground=[("!disabled", "white")])
+                  background=[("!disabled", primary), ("pressed", "#2563EB")],
+                  foreground=[("!disabled", "#ffffff")])
 
     # -------- Construcción general --------
     def _build_ui(self):
         # Encabezado minimal (sin controles globales de Gauss)
         header = ttk.Frame(self, style="Toolbar.TFrame")
         header.pack(fill="x", padx=10, pady=8)
-        ttk.Label(header, text="Soluciones de Álgebra Lineal", font=("Segoe UI Semibold", 12)).pack(side="left")
+        ttk.Label(header, text="Soluciones de Álgebra Lineal", font=("Times New Roman", 12)).pack(side="left")
 
         # Notebook de pestañas
         self.nb = ttk.Notebook(self)
@@ -323,7 +394,7 @@ class App(tk.Tk):
         sub.add(boxA, weight=1)
 
         boxB = ttk.Labelframe(sub, text="Pasos / Operaciones", style="Card.TLabelframe", padding=6)
-        self.txt_log = tk.Text(boxB, height=14, wrap="word"); self.txt_log.pack(fill="both", expand=True)
+        self.txt_log = make_text(boxB, height=14, wrap="word"); self.txt_log.pack(fill="both", expand=True)
         sub.add(boxB, weight=1)
 
     # -------- Tab 2: Suma de matrices --------
@@ -350,11 +421,11 @@ class App(tk.Tk):
 
         out = ttk.Panedwindow(frame, orient="horizontal"); out.pack(fill="both", expand=True, pady=8)
         res_box = ttk.Labelframe(out, text="Resultado", style="Card.TLabelframe", padding=6)
-        self.suma_out = tk.Text(res_box, height=12, wrap="word"); self.suma_out.pack(fill="both", expand=True)
+        self.suma_out = make_text(res_box, height=12, wrap="word"); self.suma_out.pack(fill="both", expand=True)
         out.add(res_box, weight=1)
 
         log_box = ttk.Labelframe(out, text="Pasos", style="Card.TLabelframe", padding=6)
-        self.suma_log = tk.Text(log_box, height=12, wrap="word"); self.suma_log.pack(fill="both", expand=True)
+        self.suma_log = make_text(log_box, height=12, wrap="word");self.suma_log.pack(fill="both", expand=True)
         out.add(log_box, weight=1)
 
         btns = ttk.Frame(frame); btns.pack(fill="x")
@@ -410,11 +481,11 @@ class App(tk.Tk):
 
         out = ttk.Panedwindow(frame, orient="horizontal"); out.pack(fill="both", expand=True, pady=8)
         res_box = ttk.Labelframe(out, text="Resultado", style="Card.TLabelframe", padding=6)
-        self.mult_out = tk.Text(res_box, height=12, wrap="word"); self.mult_out.pack(fill="both", expand=True)
+        self.mult_out = make_text(res_box, height=12, wrap="word"); self.mult_out.pack(fill="both", expand=True)
         out.add(res_box, weight=1)
 
         log_box = ttk.Labelframe(out, text="Pasos", style="Card.TLabelframe", padding=6)
-        self.mult_log = tk.Text(log_box, height=12, wrap="word"); self.mult_log.pack(fill="both", expand=True)
+        self.mult_log = make_text(log_box, height=12, wrap="word"); self.mult_log.pack(fill="both", expand=True)
         out.add(log_box, weight=1)
 
         btns = ttk.Frame(frame); btns.pack(fill="x")
@@ -460,7 +531,7 @@ class App(tk.Tk):
         self.es_next.pack(side="left", padx=6)
         ttk.Button(btns, text="Exportar log", command=self._escalar_export).pack(side="left")
 
-        self.es_txt = tk.Text(frame, height=18, wrap="word"); self.es_txt.pack(fill="both", expand=True, pady=8)
+        self.es_txt = make_text(frame, height=18, wrap="word"); self.es_txt.pack(fill="both", expand=True)
         self._es_pasos = []; self._es_idx = 0; self._es_resultado = []
 
     def _escalar_calc(self):
@@ -520,7 +591,7 @@ class App(tk.Tk):
         self.tr_A = MatrixInput(frame, rows=2, cols=2, allow_b=False); self.tr_A.pack(fill="x")
 
         ttk.Label(frame, text="Resultado", style="Title.TLabel").pack(anchor="w", pady=(8,2))
-        self.tr_out = tk.Text(frame, height=14, wrap="word"); self.tr_out.pack(fill="both", expand=True)
+        self.tr_out = make_text(frame, height=14, wrap="word"); self.tr_out.pack(fill="both", expand=True)
 
         btns = ttk.Frame(frame); btns.pack(fill="x", pady=8)
         ttk.Button(btns, text="Calcular", style="Accent.TButton", command=self._calc_transpuesta).pack(side="left")
@@ -576,13 +647,11 @@ class App(tk.Tk):
 
         # Guardamos la labelframe en self.inv_res_box por si luego queremos cambiarle el título
         self.inv_res_box = ttk.Labelframe(out, text="Matriz inversa", style="Card.TLabelframe", padding=6)
-        self.inv_out = tk.Text(self.inv_res_box, height=14, wrap="word")
-        self.inv_out.pack(fill="both", expand=True)
+        self.inv_out = make_text(self.inv_res_box, height=14, wrap="word"); self.inv_out.pack(fill="both", expand=True)
         out.add(self.inv_res_box, weight=1)
 
         log_box = ttk.Labelframe(out, text="Pasos", style="Card.TLabelframe", padding=6)
-        self.inv_log = tk.Text(log_box, height=14, wrap="word")
-        self.inv_log.pack(fill="both", expand=True)
+        self.inv_log = make_text(log_box, height=14, wrap="word"); self.inv_log.pack(fill="both", expand=True)
         out.add(log_box, weight=1)
 
         # ---- Botones ----
@@ -597,7 +666,7 @@ class App(tk.Tk):
 
         # Buffer para exportar pasos
         self.inv_last_steps = []
-    
+
     def _calc_inversa(self):
         from matrices import formatear_matriz
         # Validación previa
@@ -682,7 +751,7 @@ class App(tk.Tk):
         with open(fp, "w", encoding="utf-8") as f:
             for i, p in enumerate(self.inv_last_steps, start=1):
                 f.write(f"Paso {i}:\n{p}\n\n")
-        messagebox.showinfo("Listo", f"Registro exportado a: {fp}")    
+        messagebox.showinfo("Listo", f"Registro exportado a: {fp}")
 
     # -------- Tab 7: Independencia Lineal (nueva) --------
     def _tab_independencia(self):
@@ -714,7 +783,7 @@ class App(tk.Tk):
 
         # Pasos y conclusión
         log_box = ttk.Labelframe(out, text="Pasos y conclusión", style="Card.TLabelframe", padding=6)
-        self.il_log = tk.Text(log_box, height=16, wrap="word"); self.il_log.pack(fill="both", expand=True)
+        self.il_log = make_text(log_box, height=16, wrap="word"); self.il_log.pack(fill="both", expand=True)
         out.add(log_box, weight=1)
 
         btns = ttk.Frame(frame); btns.pack(fill="x")
@@ -853,7 +922,7 @@ class App(tk.Tk):
         ).pack(side="left")
 
         # ---- Matriz A ----
-        ttk.Label(frame, text="Matriz A", style="Title.TLabel").pack(anchor="w", pady=(8, 2))
+        ttk.Label(frame, text="A:", style="Title.TLabel").pack(anchor="w", pady=(8, 2))
         self.det_A = MatrixInput(frame, rows=3, cols=3, allow_b=False)
         self.det_A.pack(fill="x")
 
@@ -861,11 +930,11 @@ class App(tk.Tk):
         out = ttk.Panedwindow(frame, orient="horizontal"); out.pack(fill="both", expand=True, pady=8)
 
         res_box = ttk.Labelframe(out, text="Resultado", style="Card.TLabelframe", padding=6)
-        self.det_out = tk.Text(res_box, height=10, wrap="word"); self.det_out.pack(fill="both", expand=True)
+        self.det_out = make_text(res_box, height=10, wrap="word"); self.det_out.pack(fill="both", expand=True)
         out.add(res_box, weight=1)
 
         log_box = ttk.Labelframe(out, text="Pasos", style="Card.TLabelframe", padding=6)
-        self.det_log = tk.Text(log_box, height=10, wrap="word"); self.det_log.pack(fill="both", expand=True)
+        self.det_log = make_text(log_box, height=10, wrap="word"); self.det_log.pack(fill="both", expand=True)
         out.add(log_box, weight=1)
 
         # ---- Botones ----
@@ -974,7 +1043,7 @@ class App(tk.Tk):
         # Matriz A
         left_mat = ttk.Frame(matrix_frame)
         left_mat.pack(side="left", fill="x", expand=True)
-        ttk.Label(left_mat, text="Matriz A (coeficientes)", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(left_mat, text="A (coeficientes)", style="Title.TLabel").pack(anchor="w")
         self.cramer_A = MatrixInput(left_mat, rows=3, cols=3, allow_b=False)
         self.cramer_A.pack(fill="x")
 
@@ -990,13 +1059,11 @@ class App(tk.Tk):
         out.pack(fill="both", expand=True, pady=8)
 
         res_box = ttk.Labelframe(out, text="Solución", style="Card.TLabelframe", padding=6)
-        self.cramer_out = tk.Text(res_box, height=12, wrap="word")
-        self.cramer_out.pack(fill="both", expand=True)
+        self.cramer_out = make_text(res_box, height=12, wrap="word"); self.cramer_out.pack(fill="both", expand=True)
         out.add(res_box, weight=1)
 
         log_box = ttk.Labelframe(out, text="Pasos de Cramer", style="Card.TLabelframe", padding=6)
-        self.cramer_log = tk.Text(log_box, height=12, wrap="word")
-        self.cramer_log.pack(fill="both", expand=True)
+        self.cramer_log = make_text(log_box, height=12, wrap="word"); self.cramer_log.pack(fill="both", expand=True)
         out.add(log_box, weight=1)
 
         # ---- Botones ----
@@ -1114,14 +1181,14 @@ class App(tk.Tk):
         # Paso 1: Calcular determinante de A
         pasos.append("Paso 1: Calcular determinante de A")
         det_A, pasos_det = determinante_matriz(A)
-        pasos.append(f"Matriz A:")
+        pasos.append(f"  A:")
         pasos.append(formatear_matriz(A))
         for p in pasos_det:
             pasos.append(p)
         pasos.append(f"det(A) = {det_A}")
 
         if det_A.es_cero():
-            raise ValueError("La matriz A no es invertible (det(A) = 0). No se puede aplicar la Regla de Cramer.")
+            raise ValueError("A no es invertible (det(A) = 0). No se puede aplicar la Regla de Cramer.")
 
         pasos.append("")  # Línea en blanco
 
@@ -1176,7 +1243,7 @@ class App(tk.Tk):
 
         left_mat = ttk.Frame(matrix_frame)
         left_mat.pack(fill="x", expand=True)
-        ttk.Label(left_mat, text="Matriz A (cuadrada)", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(left_mat, text="A (debe ser cuadrada)", style="Title.TLabel").pack(anchor="w")
         self.sarrus_A = MatrixInput(left_mat, rows=3, cols=3, allow_b=False)
         self.sarrus_A.pack(fill="x")
 
@@ -1185,13 +1252,11 @@ class App(tk.Tk):
         out.pack(fill="both", expand=True, pady=8)
 
         res_box = ttk.Labelframe(out, text="Determinante", style="Card.TLabelframe", padding=6)
-        self.sarrus_out = tk.Text(res_box, height=12, wrap="word")
-        self.sarrus_out.pack(fill="both", expand=True)
+        self.sarrus_out = make_text(res_box, height=12, wrap="word"); self.sarrus_out.pack(fill="both", expand=True)
         out.add(res_box, weight=1)
 
         log_box = ttk.Labelframe(out, text="Pasos del método de Sarrus", style="Card.TLabelframe", padding=6)
-        self.sarrus_log = tk.Text(log_box, height=12, wrap="word")
-        self.sarrus_log.pack(fill="both", expand=True)
+        self.sarrus_log = make_text(log_box, height=12, wrap="word"); self.sarrus_log.pack(fill="both", expand=True)
         out.add(log_box, weight=1)
 
         # ---- Botones ----

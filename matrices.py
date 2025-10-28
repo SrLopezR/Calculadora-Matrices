@@ -476,7 +476,7 @@ def regla_cramer(A, b):
     pasos.append(f"det(A) = {det_A}")
 
     if det_A.es_cero():
-        raise ValueError("La matriz A no es invertible (det(A) = 0). No se puede aplicar la Regla de Cramer.")
+        raise ValueError("A no es invertible (det(A) = 0). No se puede aplicar la Regla de Cramer.")
 
     pasos.append("")  # Línea en blanco
 
