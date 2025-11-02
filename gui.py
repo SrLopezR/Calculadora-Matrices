@@ -8,6 +8,9 @@ from matrices import (
     sumar_matrices, multiplicar_matrices,
     multiplicar_escalar_matriz, formatear_matriz, Transpuesta, determinante_matriz, determinante_cofactores, determinante_sarrus
 )
+from numericos import (
+    parse_function, biseccion
+)    
 TEXT_BG = "#1E1E1E"
 TEXT_FG = "#FFFFFF"
 TEXT_FONT = ("Cascadia Code", 10)
@@ -233,7 +236,7 @@ class App(tk.Tk):
         self._tab_determinante()
         self._tab_cramer()
         self._tab_sarrus()
-
+        self._tab_metodos_numericos()
 
         # Resultado general + estado
         result_card = ttk.Labelframe(self, text="Resultado", style="Card.TLabelframe", padding=8)
@@ -1342,6 +1345,167 @@ class App(tk.Tk):
         self.sarrus_out.insert(tk.END, f"Determinante de A:\n\n{resultado}\n")
         self._update_status("Determinante calculado correctamente con Sarrus.")
 
+    # -------- Métodos numéricos (raíces por Bisección) --------
+    def _tab_metodos_numericos(self):
+        import tkinter as tk
+        from tkinter import ttk, messagebox, filedialog
+
+        tab = ttk.Frame(self.nb)
+        self.nb.add(tab, text="Ceros de f(x)")
+
+        frame = ttk.Frame(tab, padding=10)
+        frame.pack(fill="both", expand=True)
+
+        # ---- Entrada de función y parámetros ----
+        box_in = ttk.Labelframe(frame, text="Entradas", style="Card.TLabelframe", padding=8)
+        box_in.pack(fill="x")
+
+        row1 = ttk.Frame(box_in); row1.pack(fill="x", pady=4)
+        ttk.Label(row1, text="f(x) =").pack(side="left")
+        self.fx_entry = ttk.Entry(row1)
+        self.fx_entry.pack(side="left", fill="x", expand=True, padx=6)
+        self.fx_entry.insert(0, "x**3 - x - 2")  # ejemplo
+
+        row2 = ttk.Frame(box_in); row2.pack(fill="x", pady=4)
+        ttk.Label(row2, text="a:").pack(side="left")
+        self.a_entry = ttk.Entry(row2, width=12); self.a_entry.pack(side="left", padx=(4,8))
+        self.a_entry.insert(0, "1")
+        ttk.Label(row2, text="b:").pack(side="left")
+        self.b_entry = ttk.Entry(row2, width=12); self.b_entry.pack(side="left", padx=(4,8))
+        self.b_entry.insert(0, "2")
+        ttk.Label(row2, text="tol:").pack(side="left")
+        self.tol_entry = ttk.Entry(row2, width=12); self.tol_entry.pack(side="left", padx=(4,8))
+        self.tol_entry.insert(0, "0.0001")
+        ttk.Label(row2, text="error:").pack(side="left")
+        self.err_kind = tk.StringVar(value="absoluto")
+        ttk.Combobox(row2, textvariable=self.err_kind, width=10,
+                     values=("absoluto","relativo"), state="readonly").pack(side="left", padx=(4,8))
+        ttk.Label(row2, text="máx it:").pack(side="left")
+        self.maxit_entry = ttk.Entry(row2, width=10); self.maxit_entry.pack(side="left", padx=(4,8))
+        self.maxit_entry.insert(0, "200")
+
+        row3 = ttk.Frame(box_in); row3.pack(fill="x", pady=(6,2))
+        ttk.Button(row3, text="Bisección (resolver)", style="Accent.TButton",
+                   command=self._calc_biseccion).pack(side="left")
+        ttk.Button(row3, text="Exportar pasos", command=self._export_biseccion).pack(side="left", padx=6)
+        ttk.Button(row3, text="Limpiar", command=self._clear_biseccion).pack(side="left", padx=6)
+
+        # ---- Salidas: tabla de pasos + log texto ----
+        body = ttk.Panedwindow(frame, orient="horizontal")
+        body.pack(fill="both", expand=True, pady=8)
+
+        left = ttk.Labelframe(body, text="Tabla de iteraciones", style="Card.TLabelframe", padding=6)
+        self.bis_tree = ttk.Treeview(left, show="headings", height=14)
+        self.bis_tree["columns"] = ("it","xi","xu","xr","Ea","yi","yu","yr")
+        heads  = ["iteracion","xi","xu","xr","Ea","yi","yu","yr"]
+        widths = [80,90,90,90,90,90,90,90]
+        for i, col in enumerate(self.bis_tree["columns"]):
+            self.bis_tree.heading(col, text=heads[i])
+            self.bis_tree.column(col, width=widths[i], anchor="center")
+        self.bis_tree.pack(fill="both", expand=True)
+        body.add(left, weight=2)
+
+        right = ttk.Labelframe(body, text="Resumen / Conclusión", style="Card.TLabelframe", padding=6)
+        self.bis_out = make_text(right, height=16, wrap="word")
+        self.bis_out.pack(fill="both", expand=True)
+        body.add(right, weight=1)
+
+        # buffer para exportación
+        self._bis_pasos = []
+        self._bis_result = None
+        self._bis_motivo = ""
+
+    def _clear_biseccion(self):
+        self.bis_tree.delete(*self.bis_tree.get_children())
+        self.bis_out.delete(1.0, "end")
+        self._bis_pasos = []
+        self._bis_result = None
+        self._bis_motivo = ""
+        self._update_status("Listo.")
+
+    def _calc_biseccion(self):
+        from numericos import parse_function, biseccion, IntervaloInvalido, FuncionInvalida
+        # limpiar salidas
+        self._clear_biseccion()
+        # leer entradas
+        src = self.fx_entry.get().strip()
+        a = self.a_entry.get().strip()
+        b = self.b_entry.get().strip()
+        tol = self.tol_entry.get().strip()
+        maxit = self.maxit_entry.get().strip()
+        try:
+            f = parse_function(src)
+            a = float(a); b = float(b)
+            tol = float(tol); maxit = int(maxit)
+            usar = self.err_kind.get()
+            c, pasos, motivo = biseccion(f, a, b, tol=tol, max_iter=maxit, usar_error=usar)
+        except FuncionInvalida as e:
+            from tkinter import messagebox
+            messagebox.showerror("f(x) inválida", str(e)); return
+        except IntervaloInvalido as e:
+            from tkinter import messagebox
+            messagebox.showerror("Intervalo inválido", str(e)); return
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Error", str(e)); return
+
+        # mostrar tabla
+        for row in pasos:
+            def fmt(v):
+                try:
+                    return f"{v:.8g}"
+                except Exception:
+                    return str(v)
+            self.bis_tree.insert("", "end", values=(
+                row["k"], fmt(row["a"]), fmt(row["b"]), fmt(row["c"]),
+                fmt(row["fa"]), fmt(row["fb"]), fmt(row["fc"]),
+                ("—" if (row["error"] != row["error"]) else fmt(row["error"]))  # NaN → —
+            ))
+
+        # resumen
+        self._bis_pasos = pasos
+        self._bis_result = c
+        self._bis_motivo = motivo
+        kfin = pasos[-1]["k"] if pasos else 0
+        fc = pasos[-1]["fc"] if pasos else float("nan")
+        self.bis_out.insert("end",
+            f"f(x) = {src}\n"
+            f"Intervalo inicial: [{a}, {b}]\n"
+            f"Tolerancia: {tol} ({self.err_kind.get()}); Máx. iter: {maxit}\n\n"
+            f"Resultado:\n"
+            f"  c ≈ {c:.10f}\n"
+            f"  f(c) ≈ {fc:.3e}\n"
+            f"  iteraciones = {kfin}\n"
+            f"  motivo de paro: {motivo}\n\n"
+            f"Nota: también se detiene si |f(c)| ≤ tol.\n"
+        )
+        if hasattr(self, "lbl_result"):
+            self.lbl_result.config(text=f"Raíz ≈ {c:.10f} (bisección)")
+
+        self._update_status("Bisección finalizada.")
+
+    def _export_biseccion(self):
+        if not self._bis_pasos:
+            from tkinter import messagebox
+            messagebox.showinfo("Información", "No hay pasos para exportar."); return
+        from tkinter import filedialog, messagebox
+        fp = filedialog.asksaveasfilename(defaultextension=".txt",
+                                          filetypes=[("Texto","*.txt")],
+                                          title="Guardar pasos de bisección")
+        if not fp: return
+        with open(fp, "w", encoding="utf-8") as f:
+            f.write("Método de Bisección — Registro de iteraciones\n\n")
+            for r in self._bis_pasos:
+                f.write(
+                    f"k={r['k']:>3}  a={r['a']:.10f}  b={r['b']:.10f}  c={r['c']:.10f}  "
+                    f"fa={r['fa']:.6e}  fb={r['fb']:.6e}  fc={r['fc']:.6e}  "
+                    f"error={('NaN' if r['error']!=r['error'] else format(r['error'], '.6e'))}\n"
+                )
+            if self._bis_result is not None:
+                f.write("\n")
+                f.write(f"Resultado: c ≈ {self._bis_result:.12f}\n")
+                f.write(f"Motivo de paro: {self._bis_motivo}\n")
+        messagebox.showinfo("Listo", f"Registro exportado a: {fp}")
 
 if __name__ == "__main__":
     App().mainloop()
