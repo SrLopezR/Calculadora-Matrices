@@ -1,16 +1,16 @@
 # gui_tabs_local_controls.py
+import threading
+import time
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-import threading, time
 from fraccion import Fraccion
 from gauss import GaussJordanEngine
 from matrices import (
     sumar_matrices, multiplicar_matrices,
-    multiplicar_escalar_matriz, formatear_matriz, Transpuesta, determinante_matriz, determinante_cofactores, determinante_sarrus
-)
-from numericos import (
-    parse_function, biseccion
-)    
+    multiplicar_escalar_matriz, formatear_matriz, Transpuesta, determinante_matriz,
+    determinante_cofactores, determinante_sarrus)
+from numericos import parse_function, biseccion, IntervaloInvalido, FuncionInvalida
+
 TEXT_BG = "#1E1E1E"
 TEXT_FG = "#FFFFFF"
 TEXT_FONT = ("Cascadia Code", 10)
@@ -1347,8 +1347,6 @@ class App(tk.Tk):
 
     # -------- Métodos numéricos (raíces por Bisección) --------
     def _tab_metodos_numericos(self):
-        import tkinter as tk
-        from tkinter import ttk, messagebox, filedialog
 
         tab = ttk.Frame(self.nb)
         self.nb.add(tab, text="Ceros de f(x)")
@@ -1375,7 +1373,7 @@ class App(tk.Tk):
         self.b_entry.insert(0, "2")
         ttk.Label(row2, text="tol:").pack(side="left")
         self.tol_entry = ttk.Entry(row2, width=12); self.tol_entry.pack(side="left", padx=(4,8))
-        self.tol_entry.insert(0, "0.0001")
+        self.tol_entry.insert(0, "0.00001")
         ttk.Label(row2, text="error:").pack(side="left")
         self.err_kind = tk.StringVar(value="absoluto")
         ttk.Combobox(row2, textvariable=self.err_kind, width=10,
@@ -1424,7 +1422,6 @@ class App(tk.Tk):
         self._update_status("Listo.")
 
     def _calc_biseccion(self):
-        from numericos import parse_function, biseccion, IntervaloInvalido, FuncionInvalida
         # limpiar salidas
         self._clear_biseccion()
         # leer entradas
@@ -1471,7 +1468,7 @@ class App(tk.Tk):
         self.bis_out.insert("end",
             f"f(x) = {src}\n"
             f"Intervalo inicial: [{a}, {b}]\n"
-            f"Tolerancia: {tol} ({self.err_kind.get()}); Máx. iter: {maxit}\n\n"
+            f"Tolerancia: {tol} \t({self.err_kind.get()})\n"
             f"Resultado:\n"
             f"  c ≈ {c:.10f}\n"
             f"  f(c) ≈ {fc:.8f}\n"
