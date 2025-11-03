@@ -12,7 +12,7 @@ _ALLOWED = {
     "asin": math.asin, "acos": math.acos, "atan": math.atan,
     "sinh": math.sinh, "cosh": math.cosh, "tanh": math.tanh,
     "exp": math.exp, "log": math.log, "log10": math.log10,
-    "sqrt": math.sqrt, "abs": abs
+    "sqrt": math.sqrt, "abs": abs, "ln": math.log,
 }
 
 class FuncionInvalida(Exception):
@@ -98,10 +98,10 @@ def biseccion(f, a, b, tol=1e-4, max_iter=200, usar_error="absoluto"):
             break
 
         # actualización de intervalo
-        if fa * fc < 0:
-            b, fb = c, fc
-        else:
+        if fa * fb > 0:
             a, fa = c, fc
+        else:
+            b, fb = c, fc
 
         c_prev = c
 

@@ -1367,10 +1367,10 @@ class App(tk.Tk):
         row2 = ttk.Frame(box_in); row2.pack(fill="x", pady=4)
         ttk.Label(row2, text="a:").pack(side="left")
         self.a_entry = ttk.Entry(row2, width=12); self.a_entry.pack(side="left", padx=(4,8))
-        self.a_entry.insert(0, "1")
+        self.a_entry.insert(0, "0")
         ttk.Label(row2, text="b:").pack(side="left")
         self.b_entry = ttk.Entry(row2, width=12); self.b_entry.pack(side="left", padx=(4,8))
-        self.b_entry.insert(0, "2")
+        self.b_entry.insert(0, "1")
         ttk.Label(row2, text="tol:").pack(side="left")
         self.tol_entry = ttk.Entry(row2, width=12); self.tol_entry.pack(side="left", padx=(4,8))
         self.tol_entry.insert(0, "0.00001")
@@ -1394,9 +1394,9 @@ class App(tk.Tk):
 
         left = ttk.Labelframe(body, text="Tabla de iteraciones", style="Card.TLabelframe", padding=6)
         self.bis_tree = ttk.Treeview(left, show="headings", height=14)
-        self.bis_tree["columns"] = ("it","xi","xu","xr","Ea","yi","yu","yr")
-        heads  = ["iteracion","a","b","c","Ea","f(a)","f(b)","f(c)"]
-        widths = [80,90,90,90,90,90,90,90]
+        self.bis_tree["columns"] = ("it","xi","xu","xr","yi","yu","yr")
+        heads  = ["iteracion","a","b","c","f(a)","f(b)","f(c)"]
+        widths = [80,90,90,90,90,90,90]
         for i, col in enumerate(self.bis_tree["columns"]):
             self.bis_tree.heading(col, text=heads[i])
             self.bis_tree.column(col, width=widths[i], anchor="center")
@@ -1422,6 +1422,7 @@ class App(tk.Tk):
         self._update_status("Listo.")
 
     def _calc_biseccion(self):
+        from numericos import parse_function, biseccion, IntervaloInvalido, FuncionInvalida
         # limpiar salidas
         self._clear_biseccion()
         # leer entradas
@@ -1431,20 +1432,27 @@ class App(tk.Tk):
         tol = self.tol_entry.get().strip()
         maxit = self.maxit_entry.get().strip()
         try:
-            f = parse_function(src)
-            a = float(a); b = float(b)
-            tol = float(tol); maxit = int(maxit)
+            # Preprocesar la función si contiene igualdad
+            funcion_para_calculo = self._preprocesar_funcion_igualdad(src)
+            f = parse_function(funcion_para_calculo)
+            a = float(a);
+            b = float(b)
+            tol = float(tol);
+            maxit = int(maxit)
             usar = self.err_kind.get()
             c, pasos, motivo = biseccion(f, a, b, tol=tol, max_iter=maxit, usar_error=usar)
         except FuncionInvalida as e:
             from tkinter import messagebox
-            messagebox.showerror("f(x) inválida", str(e)); return
+            messagebox.showerror("f(x) inválida", str(e));
+            return
         except IntervaloInvalido as e:
             from tkinter import messagebox
-            messagebox.showerror("Intervalo inválido", str(e)); return
+            messagebox.showerror("Intervalo inválido", str(e));
+            return
         except Exception as e:
             from tkinter import messagebox
-            messagebox.showerror("Error", str(e)); return
+            messagebox.showerror("Error", str(e));
+            return
 
         # mostrar tabla
         for row in pasos:
@@ -1453,11 +1461,15 @@ class App(tk.Tk):
                     return f"{v:.8g}"
                 except Exception:
                     return str(v)
+
             self.bis_tree.insert("", "end", values=(
                 row["k"], fmt(row["a"]), fmt(row["b"]), fmt(row["c"]),
                 fmt(row["fa"]), fmt(row["fb"]), fmt(row["fc"]),
                 ("—" if (row["error"] != row["error"]) else fmt(row["error"]))  # NaN → —
             ))
+
+        # Formatear la función para mostrar
+        funcion_formateada = self._formatear_funcion(src)
 
         # resumen
         self._bis_pasos = pasos
@@ -1465,43 +1477,159 @@ class App(tk.Tk):
         self._bis_motivo = motivo
         kfin = pasos[-1]["k"] if pasos else 0
         fc = pasos[-1]["fc"] if pasos else float("nan")
+
+        # Determinar qué tipo de ecuación es
+        tipo_ecuacion = self._determinar_tipo_ecuacion(src)
+
         self.bis_out.insert("end",
-            f"f(x) = {src}\n"
-            f"Intervalo inicial: [{a}, {b}]\n"
-            f"Tolerancia: {tol} \t({self.err_kind.get()})\n"
-            f"Resultado:\n"
-            f"  c ≈ {c:.10f}\n"
-            f"  f(c) ≈ {fc:.8f}\n"
-            f"  iteraciones = {kfin}\n"
-            f"  motivo de paro: {motivo}\n\n"
-            f"Nota: también se detiene si |f(c)| ≤ tol.\n"
-        )
+                            f"Ecuación: {funcion_formateada}\n"
+                            f"Tipo: {tipo_ecuacion}\n"
+                            f"Intervalo inicial: [{a}, {b}]\n"
+                            f"Tolerancia: {tol} ({self.err_kind.get()})"
+                            f"Resultado:\n"
+                            f"  Solución ≈ {c:.10f}\n"
+                            f"  f(c) ≈ {fc:.8f}\n"
+                            f"  iteraciones = {kfin}\n"
+                            f"  motivo de paro: {motivo}\n\n"
+                            f"Nota: también se detiene si |f(c)| ≤ tol.\n"
+                            )
         if hasattr(self, "lbl_result"):
             self.lbl_result.config(text=f"Raíz ≈ {c:.5f} (bisección)")
 
         self._update_status("Bisección finalizada.")
 
+    def _preprocesar_funcion_igualdad(self, funcion_str):
+        """
+        Convierte una ecuación con igualdad a una función f(x) = 0
+        Ejemplos:
+        - "x**2 = 5" -> "x**2 - 5"
+        - "f(x) = x**3 - 2" -> "x**3 - 2"
+        - "x**2 + 3*x = 10" -> "x**2 + 3*x - 10"
+        - "e^x = 2*x" -> "e^x - 2*x"
+        """
+        if '=' in funcion_str:
+            partes = funcion_str.split('=')
+            if len(partes) == 2:
+                izquierda = partes[0].strip()
+                derecha = partes[1].strip()
+
+                # Limpiar f(x) = si está presente
+                if izquierda.startswith('f(x)') or izquierda.startswith('f('):
+                    izquierda = izquierda.replace('f(x)', '').replace('f(', '').strip()
+                    if izquierda.startswith(')'):
+                        izquierda = izquierda[1:].strip()
+
+                # Si la izquierda está vacía después de quitar f(x), usar solo la derecha
+                if not izquierda or izquierda == '=':
+                    return derecha
+
+                # Construir la función restando ambos lados
+                return f"({izquierda}) - ({derecha})"
+
+        # Si no hay igualdad, devolver la función original
+        return funcion_str
+
+    def _determinar_tipo_ecuacion(self, funcion_str):
+        """Determina el tipo de ecuación para mostrar en el resultado"""
+        if '=' in funcion_str:
+            return "Ecuación con igualdad"
+        else:
+            return "Función f(x) = 0"
+
+    def _formatear_funcion(self, funcion_str):
+        """Convierte la función a un formato más legible"""
+        # Primero separar si hay igualdad
+        if '=' in funcion_str:
+            partes = funcion_str.split('=')
+            izquierda = self._formatear_parte_funcion(partes[0].strip())
+            derecha = self._formatear_parte_funcion(partes[1].strip())
+            return f"{izquierda} = {derecha}"
+        else:
+            return f"{self._formatear_parte_funcion(funcion_str)} = 0"
+
+    def _formatear_parte_funcion(self, parte_str):
+        """Formatea una parte de la función (sin igualdad)"""
+        # Reemplazos para formato matemático
+        replacements = {
+            '**2': '²',
+            '**3': '³',
+            '**4': '⁴',
+            '**': '^',
+            '^': 'ˆ',
+            '*': '·',
+            'exp(': 'e^(',
+            'log(': 'ln(',
+            'ln(': 'ln(',
+            'sqrt(': '√(',
+            'sin(': 'sen(',
+            'pi': 'π',
+            ' ': ''  # Eliminar espacios
+        }
+
+        # Aplicar reemplazos
+        formatted = parte_str
+        for old, new in replacements.items():
+            formatted = formatted.replace(old, new)
+
+        # Mejorar formato de fracciones y productos
+        import re
+
+        # Formato para multiplicaciones implícitas: 2x -> 2·x, x(x+1) -> x·(x+1)
+        formatted = re.sub(r'(\d)([a-zA-Z(])', r'\1·\2', formatted)
+        formatted = re.sub(r'([a-zA-Z0-9)])\s*\(', r'\1·(', formatted)
+
+        # Formato para exponentes negativos: x^-2 -> x⁻²
+        exp_replacements = {
+            '^-1': '⁻¹',
+            '^-2': '⁻²',
+            '^-3': '⁻³',
+            '^-4': '⁻⁴'
+        }
+
+        for exp, sup in exp_replacements.items():
+            formatted = formatted.replace(exp, sup)
+
+        return formatted
+
     def _export_biseccion(self):
         if not self._bis_pasos:
             from tkinter import messagebox
-            messagebox.showinfo("Información", "No hay pasos para exportar."); return
+            messagebox.showinfo("Información", "No hay pasos para exportar.");
+            return
         from tkinter import filedialog, messagebox
         fp = filedialog.asksaveasfilename(defaultextension=".txt",
-                                          filetypes=[("Texto","*.txt")],
+                                          filetypes=[("Texto", "*.txt")],
                                           title="Guardar pasos de bisección")
         if not fp: return
+
+        # Obtener y formatear función
+        funcion_original = self.fx_entry.get().strip()
+        funcion_formateada = self._formatear_funcion(funcion_original)
+        funcion_para_calculo = self._preprocesar_funcion_igualdad(funcion_original)
+
         with open(fp, "w", encoding="utf-8") as f:
             f.write("Método de Bisección — Registro de iteraciones\n\n")
+            f.write(f"Ecuación: {funcion_formateada}\n")
+            f.write(f"Función utilizada: f(x) = {funcion_para_calculo}\n")
+            f.write(f"Expresión original: {funcion_original}\n\n")
+
+            f.write("Iter  a            b            c            f(a)         f(b)         f(c)         Error\n")
+            f.write("—" * 100 + "\n")
+
             for r in self._bis_pasos:
+                error_str = 'NaN' if r['error'] != r['error'] else f"{r['error']:.6e}"
                 f.write(
-                    f"k={r['k']:>3}  a={r['a']:.10f}  b={r['b']:.10f}  c={r['c']:.10f}  "
-                    f"fa={r['fa']:.6e}  fb={r['fb']:.6e}  fc={r['fc']:.6e}  "
-                    f"error={('NaN' if r['error']!=r['error'] else format(r['error'], '.6e'))}\n"
+                    f"{r['k']:3d}  {r['a']:11.8f}  {r['b']:11.8f}  {r['c']:11.8f}  "
+                    f"{r['fa']:11.6e}  {r['fb']:11.6e}  {r['fc']:11.6e}  {error_str:>11}\n"
                 )
+
             if self._bis_result is not None:
-                f.write("\n")
-                f.write(f"Resultado: c ≈ {self._bis_result:.12f}\n")
+                f.write("\n" + "=" * 60 + "\n")
+                f.write(f"Resultado: Solución ≈ {self._bis_result:.12f}\n")
+                f.write(f"f(solución) ≈ {self._bis_pasos[-1]['fc']:.6e}\n")
                 f.write(f"Motivo de paro: {self._bis_motivo}\n")
+                f.write(f"Iteraciones totales: {len(self._bis_pasos)}\n")
+
         messagebox.showinfo("Listo", f"Registro exportado a: {fp}")
 
 if __name__ == "__main__":
