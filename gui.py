@@ -1397,7 +1397,7 @@ class App(tk.Tk):
         left = ttk.Labelframe(body, text="Tabla de iteraciones", style="Card.TLabelframe", padding=6)
         self.bis_tree = ttk.Treeview(left, show="headings", height=14)
         self.bis_tree["columns"] = ("it","xi","xu","xr","Ea","yi","yu","yr")
-        heads  = ["iteracion","xi","xu","xr","Ea","yi","yu","yr"]
+        heads  = ["iteracion","a","b","c","Ea","f(a)","f(b)","f(c)"]
         widths = [80,90,90,90,90,90,90,90]
         for i, col in enumerate(self.bis_tree["columns"]):
             self.bis_tree.heading(col, text=heads[i])
@@ -1474,13 +1474,13 @@ class App(tk.Tk):
             f"Tolerancia: {tol} ({self.err_kind.get()}); Máx. iter: {maxit}\n\n"
             f"Resultado:\n"
             f"  c ≈ {c:.10f}\n"
-            f"  f(c) ≈ {fc:.3e}\n"
+            f"  f(c) ≈ {fc:.8f}\n"
             f"  iteraciones = {kfin}\n"
             f"  motivo de paro: {motivo}\n\n"
             f"Nota: también se detiene si |f(c)| ≤ tol.\n"
         )
         if hasattr(self, "lbl_result"):
-            self.lbl_result.config(text=f"Raíz ≈ {c:.10f} (bisección)")
+            self.lbl_result.config(text=f"Raíz ≈ {c:.5f} (bisección)")
 
         self._update_status("Bisección finalizada.")
 
