@@ -8,7 +8,11 @@ from matrices import (
     sumar_matrices, multiplicar_matrices,
     multiplicar_escalar_matriz, formatear_matriz, Transpuesta, determinante_matriz,
     determinante_cofactores)
-from numericos import parse_function, biseccion, IntervaloInvalido, FuncionInvalida
+from numericos import biseccion
+import matplotlib.pyplot as plt
+import numpy as np
+import math
+import re
 
 TEXT_BG = "#1E1E1E"
 TEXT_FG = "#FFFFFF"
@@ -1347,7 +1351,6 @@ class App(tk.Tk):
 
     # -------- Métodos numéricos (raíces por Bisección) --------
     def _tab_metodos_numericos(self):
-        """Pestaña de métodos numéricos - VERSIÓN MEJORADA"""
         tab = ttk.Frame(self.nb)
         self.nb.add(tab, text="Método de Bisección")
 
@@ -1363,7 +1366,7 @@ class App(tk.Tk):
         ttk.Label(title_frame, text="Encuentra raíces de f(x) = 0 en [a, b]",
                   font=("Times New Roman", 10)).pack(anchor="w")
 
-        # ---- Entrada de función mejorada ----
+        # ---- Entrada de función ----
         func_frame = ttk.LabelFrame(frame, text="Función f(x)", padding=8)
         func_frame.pack(fill="x", pady=5)
 
@@ -1377,7 +1380,7 @@ class App(tk.Tk):
         self.fx_entry.insert(0, "x**2 + 3*x - 5")
         self.fx_entry.bind('<KeyRelease>', self._auto_format_function)
 
-        self.graph_btn = ttk.Button(func_input_frame, text="📈 Graficar",
+        self.graph_btn = ttk.Button(func_input_frame, text="Graficar",
                                     command=self._graficar_funcion)
         self.graph_btn.pack(side="left", padx=5)
 
@@ -1429,7 +1432,7 @@ class App(tk.Tk):
         self.tol_entry.insert(0, "0.0001")
 
         # ---- Botón calcular ----
-        self.calc_btn = ttk.Button(frame, text="🔍 Calcular Bisección",
+        self.calc_btn = ttk.Button(frame, text="Calcular Bisección",
                                    style="Accent.TButton",
                                    command=self._calc_biseccion)
         self.calc_btn.pack(pady=10)
@@ -1547,8 +1550,6 @@ class App(tk.Tk):
 
     def _parse_calculation(self, func_str):
         """Convierte a formato ejecutable (siempre funciona)"""
-        import math
-        import re
 
         # 1. LIMPIAR COMPLETAMENTE - eliminar formato visual
         calc_str = func_str.strip()
@@ -1588,9 +1589,6 @@ class App(tk.Tk):
         calc_str = re.sub(r'\(\s*(.*?)\s*\)', r'(\1)', calc_str)  # limpiar paréntesis
         calc_str = calc_str.replace(' ', '')  # eliminar espacios
 
-        print(f"DEBUG - Original: '{func_str}'")
-        print(f"DEBUG - Calculable: '{calc_str}'")
-
         # 5. Crear función ejecutable
         def f(x):
             namespace = {'math': math, 'x': x}
@@ -1612,9 +1610,6 @@ class App(tk.Tk):
     def _graficar_funcion(self):
         """Grafica usando el parser de ejecución"""
         try:
-            import matplotlib.pyplot as plt
-            import numpy as np
-
             # USAR PARSER DE EJECUCIÓN, no el visual
             func_str = self.fx_entry.get()
             f = self._parse_calculation(func_str)
@@ -1658,10 +1653,8 @@ class App(tk.Tk):
             if a >= b:
                 raise ValueError("Debe cumplirse: a < b")
 
-            # Resto del código de bisección...
             raiz, pasos, motivo = biseccion(f, a, b, tol=tol, max_iter=100, usar_error="absoluto")
 
-            # Mostrar resultados...
             self._mostrar_resultados_biseccion(pasos, raiz, motivo)
 
         except Exception as e:
