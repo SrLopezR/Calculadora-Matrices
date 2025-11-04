@@ -1,4 +1,3 @@
-# gui_tabs_local_controls.py
 import threading
 import time
 import tkinter as tk
@@ -8,7 +7,7 @@ from gauss import GaussJordanEngine
 from matrices import (
     sumar_matrices, multiplicar_matrices,
     multiplicar_escalar_matriz, formatear_matriz, Transpuesta, determinante_matriz,
-    determinante_cofactores, determinante_sarrus)
+    determinante_cofactores)
 from numericos import parse_function, biseccion, IntervaloInvalido, FuncionInvalida
 
 TEXT_BG = "#1E1E1E"
@@ -180,6 +179,7 @@ class MatrixView(ttk.Frame):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
+        self.root = None
         self.title("Soluciones de Álgebra Lineal")
         self.geometry("1100x720")
         self.minsize(1000, 640)
@@ -1347,290 +1347,372 @@ class App(tk.Tk):
 
     # -------- Métodos numéricos (raíces por Bisección) --------
     def _tab_metodos_numericos(self):
-
+        """Pestaña de métodos numéricos - VERSIÓN MEJORADA"""
         tab = ttk.Frame(self.nb)
-        self.nb.add(tab, text="Ceros de f(x)")
+        self.nb.add(tab, text="Método de Bisección")
 
         frame = ttk.Frame(tab, padding=10)
         frame.pack(fill="both", expand=True)
 
-        # ---- Entrada de función y parámetros ----
-        box_in = ttk.Labelframe(frame, text="Entradas", style="Card.TLabelframe", padding=8)
-        box_in.pack(fill="x")
+        # ---- Título y descripción ----
+        title_frame = ttk.Frame(frame)
+        title_frame.pack(fill="x", pady=(0, 10))
 
-        row1 = ttk.Frame(box_in); row1.pack(fill="x", pady=4)
-        ttk.Label(row1, text="f(x) =").pack(side="left")
-        self.fx_entry = ttk.Entry(row1)
-        self.fx_entry.pack(side="left", fill="x", expand=True, padx=6)
-        self.fx_entry.insert(0, "x**3 - x - 2")  # ejemplo
+        ttk.Label(title_frame, text="Método de Bisección",
+                  font=("Times New Roman", 14, "bold")).pack(anchor="w")
+        ttk.Label(title_frame, text="Encuentra raíces de f(x) = 0 en [a, b]",
+                  font=("Times New Roman", 10)).pack(anchor="w")
 
-        row2 = ttk.Frame(box_in); row2.pack(fill="x", pady=4)
-        ttk.Label(row2, text="a:").pack(side="left")
-        self.a_entry = ttk.Entry(row2, width=12); self.a_entry.pack(side="left", padx=(4,8))
-        self.a_entry.insert(0, "0")
-        ttk.Label(row2, text="b:").pack(side="left")
-        self.b_entry = ttk.Entry(row2, width=12); self.b_entry.pack(side="left", padx=(4,8))
-        self.b_entry.insert(0, "1")
-        ttk.Label(row2, text="tol:").pack(side="left")
-        self.tol_entry = ttk.Entry(row2, width=12); self.tol_entry.pack(side="left", padx=(4,8))
-        self.tol_entry.insert(0, "0.00001")
-        ttk.Label(row2, text="error:").pack(side="left")
-        self.err_kind = tk.StringVar(value="absoluto")
-        ttk.Combobox(row2, textvariable=self.err_kind, width=10,
-                     values=("absoluto","relativo"), state="readonly").pack(side="left", padx=(4,8))
-        ttk.Label(row2, text="máx it:").pack(side="left")
-        self.maxit_entry = ttk.Entry(row2, width=10); self.maxit_entry.pack(side="left", padx=(4,8))
-        self.maxit_entry.insert(0, "200")
+        # ---- Entrada de función mejorada ----
+        func_frame = ttk.LabelFrame(frame, text="Función f(x)", padding=8)
+        func_frame.pack(fill="x", pady=5)
 
-        row3 = ttk.Frame(box_in); row3.pack(fill="x", pady=(6,2))
-        ttk.Button(row3, text="Bisección (resolver)", style="Accent.TButton",
-                   command=self._calc_biseccion).pack(side="left")
-        ttk.Button(row3, text="Exportar pasos", command=self._export_biseccion).pack(side="left", padx=6)
-        ttk.Button(row3, text="Limpiar", command=self._clear_biseccion).pack(side="left", padx=6)
+        func_input_frame = ttk.Frame(func_frame)
+        func_input_frame.pack(fill="x")
 
-        # ---- Salidas: tabla de pasos + log texto ----
-        body = ttk.Panedwindow(frame, orient="horizontal")
-        body.pack(fill="both", expand=True, pady=8)
+        ttk.Label(func_input_frame, text="f(x) =", font=("Times New Roman", 11)).pack(side="left")
 
-        left = ttk.Labelframe(body, text="Tabla de iteraciones", style="Card.TLabelframe", padding=6)
-        self.bis_tree = ttk.Treeview(left, show="headings", height=14)
-        self.bis_tree["columns"] = ("it","xi","xu","xr","yi","yu","yr")
-        heads  = ["iteracion","a","b","c","f(a)","f(b)","f(c)"]
-        widths = [80,90,90,90,90,90,90]
-        for i, col in enumerate(self.bis_tree["columns"]):
-            self.bis_tree.heading(col, text=heads[i])
-            self.bis_tree.column(col, width=widths[i], anchor="center")
-        self.bis_tree.pack(fill="both", expand=True)
-        body.add(left, weight=2)
+        self.fx_entry = tk.Entry(func_input_frame, width=35, font=("Consolas", 11))
+        self.fx_entry.pack(side="left", padx=5, fill="x", expand=True)
+        self.fx_entry.insert(0, "x**2 + 3*x - 5")
+        self.fx_entry.bind('<KeyRelease>', self._auto_format_function)
 
-        right = ttk.Labelframe(body, text="Resumen / Conclusión", style="Card.TLabelframe", padding=6)
-        self.bis_out = make_text(right, height=16, wrap="word")
-        self.bis_out.pack(fill="both", expand=True)
-        body.add(right, weight=1)
+        self.graph_btn = ttk.Button(func_input_frame, text="📈 Graficar",
+                                    command=self._graficar_funcion)
+        self.graph_btn.pack(side="left", padx=5)
 
-        # buffer para exportación
+        # ---- Botones de formato matemático ----
+        format_frame = ttk.Frame(func_frame)
+        format_frame.pack(fill="x", pady=5)
+
+        # Grupos de botones organizados
+        groups = [
+            ["x²", "x^2"], ["x³", "x^3"], ["xⁿ", "^"], ["√x", "sqrt("],
+            ["eˣ", "exp("], ["π", "pi"], ["ln", "log("], ["log₁₀", "log10("]
+        ]
+
+        for i, (text, insert_text) in enumerate(groups):
+            btn = ttk.Button(format_frame, text=text, width=6,
+                             command=lambda it=insert_text: self._insert_text(it))
+            btn.grid(row=0, column=i, padx=2, pady=2)
+
+        groups2 = [
+            ["sin", "sin("], ["cos", "cos("], ["tan", "tan("],
+            ["(", "("], [")", ")"], ["+", "+"], ["-", "-"], ["*", "*"], ["/", "/"]
+        ]
+
+        for i, (text, insert_text) in enumerate(groups2):
+            btn = ttk.Button(format_frame, text=text, width=4,
+                             command=lambda it=insert_text: self._insert_text(it))
+            btn.grid(row=1, column=i, padx=2, pady=2)
+
+        # ---- Parámetros de bisección ----
+        params_frame = ttk.LabelFrame(frame, text="Parámetros", padding=8)
+        params_frame.pack(fill="x", pady=10)
+
+        ttk.Label(params_frame, text="Intervalo [a, b]:", font=("Times New Roman", 10)).grid(row=0, column=0, padx=5,
+                                                                                             sticky="w")
+
+        ttk.Label(params_frame, text="a =").grid(row=0, column=1, padx=2)
+        self.a_entry = tk.Entry(params_frame, width=12, font=("Consolas", 10))
+        self.a_entry.grid(row=0, column=2, padx=5)
+        self.a_entry.insert(0, "1.0")
+
+        ttk.Label(params_frame, text="b =").grid(row=0, column=3, padx=2)
+        self.b_entry = tk.Entry(params_frame, width=12, font=("Consolas", 10))
+        self.b_entry.grid(row=0, column=4, padx=5)
+        self.b_entry.insert(0, "2.0")
+
+        ttk.Label(params_frame, text="Tolerancia:").grid(row=0, column=5, padx=(20, 2))
+        self.tol_entry = tk.Entry(params_frame, width=12, font=("Consolas", 10))
+        self.tol_entry.grid(row=0, column=6, padx=5)
+        self.tol_entry.insert(0, "0.0001")
+
+        # ---- Botón calcular ----
+        self.calc_btn = ttk.Button(frame, text="🔍 Calcular Bisección",
+                                   style="Accent.TButton",
+                                   command=self._calc_biseccion)
+        self.calc_btn.pack(pady=10)
+
+        # ---- Tabla de iteraciones ----
+        table_frame = ttk.LabelFrame(frame, text="Iteraciones", padding=8)
+        table_frame.pack(fill="both", expand=True, pady=10)
+
+        columns = ("k", "a", "b", "c", "f(a)", "f(b)", "f(c)", "error")
+        self.bis_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
+
+        headings = ["k", "a", "b", "c", "f(a)", "f(b)", "f(c)", "Error"]
+        widths = [50, 90, 90, 90, 100, 100, 100, 90]
+
+        for col, heading, width in zip(columns, headings, widths):
+            self.bis_tree.heading(col, text=heading)
+            self.bis_tree.column(col, width=width, anchor="center")
+
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.bis_tree.yview)
+        self.bis_tree.configure(yscrollcommand=scrollbar.set)
+
+        self.bis_tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # ---- Resultado ----
+        result_frame = ttk.Frame(frame)
+        result_frame.pack(fill="x", pady=5)
+
+        ttk.Label(result_frame, text="Resultado:", font=("Times New Roman", 11, "bold")).pack(side="left")
+        self.result_label = ttk.Label(result_frame, text="—", font=("Consolas", 11))
+        self.result_label.pack(side="left", padx=10)
+
+        # Buffer para datos
         self._bis_pasos = []
         self._bis_result = None
         self._bis_motivo = ""
 
-    def _clear_biseccion(self):
-        self.bis_tree.delete(*self.bis_tree.get_children())
-        self.bis_out.delete(1.0, "end")
-        self._bis_pasos = []
-        self._bis_result = None
-        self._bis_motivo = ""
-        self._update_status("Listo.")
+    def _insert_text(self, text):
+        """Inserta texto en la entrada de función"""
+        current = self.fx_entry.get()
+        position = self.fx_entry.index(tk.INSERT)
+        new_text = current[:position] + text + current[position:]
+        self.fx_entry.delete(0, tk.END)
+        self.fx_entry.insert(0, new_text)
+        self.fx_entry.focus()
+        self.fx_entry.icursor(position + len(text))
+        self._auto_format_function()
+
+    def _auto_format_function(self, event=None):
+        """Solo cambia la visualización, NO la función ejecutable"""
+        current_text = self.fx_entry.get()
+        cursor_pos = self.fx_entry.index(tk.INSERT)
+
+        # Aplicar formato visual
+        display_text = self._parse_display(current_text)
+
+        if display_text != current_text:
+            self.fx_entry.delete(0, tk.END)
+            self.fx_entry.insert(0, display_text)
+            new_pos = min(cursor_pos + (len(display_text) - len(current_text)), len(display_text))
+            self.fx_entry.icursor(new_pos)
+
+    def _convert_superscript(self, text):
+        """Convierte exponentes a formato superíndice"""
+
+        def replace_exponent(match):
+            base = match.group(1)
+            exponent = match.group(2)
+
+            # Mapeo de números a superíndices
+            superscript_map = {
+                '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+                '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+                '-': '⁻'
+            }
+
+            # Convertir cada dígito
+            sup_exp = ''.join(superscript_map.get(char, char) for char in exponent)
+
+            return base + sup_exp
+
+        # Patrón para detectar x^2, (x+1)^3, etc.
+        import re
+        pattern = r'([a-zA-Z0-9\)]+)\^([\d\-]+)'
+        return re.sub(pattern, replace_exponent, text)
+
+    def _parse_display(self, func_str):
+        """Convierte a formato bonito para mostrar (solo visual)"""
+        import re
+
+        # Solo cambios cosméticos
+        display = func_str.replace('**', '^')
+        display = display.replace('math.log', 'ln')
+        display = display.replace('math.exp', 'exp')
+        display = display.replace('math.sqrt', '√')
+        display = display.replace('math.pi', 'π')
+
+        # Superíndices para exponentes
+        superscript_map = {
+            '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+            '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+            '-': '⁻'
+        }
+
+        # Aplicar superíndices solo a números después de ^
+        def replace_superscript(match):
+            base = match.group(1)
+            exponent = match.group(2)
+            sup_exp = ''.join(superscript_map.get(char, char) for char in exponent)
+            return base + sup_exp
+
+        display = re.sub(r'([a-zA-Z0-9\)]+)\^([\d\-]+)', replace_superscript, display)
+
+        return display
+
+    def _parse_calculation(self, func_str):
+        """Convierte a formato ejecutable (siempre funciona)"""
+        import math
+        import re
+
+        # 1. LIMPIAR COMPLETAMENTE - eliminar formato visual
+        calc_str = func_str.strip()
+
+        # Eliminar caracteres problemáticos
+        problematic_chars = {
+            '·': '', '⋅': '', '²': '**2', '³': '**3', '⁴': '**4',
+            '⁵': '**5', '⁶': '**6', '⁷': '**7', '⁸': '**8', '⁹': '**9',
+            '⁰': '**0', '⁻': '**-', '^': '**'
+        }
+
+        for old, new in problematic_chars.items():
+            calc_str = calc_str.replace(old, new)
+
+        # 2. Revertir formato visual a código ejecutable
+        reverse_replacements = {
+            'ln': 'math.log',
+            'exp': 'math.exp',
+            '√': 'math.sqrt',
+            'π': 'math.pi',
+            'log': 'math.log10'  # asumir que log visual es base 10
+        }
+
+        for visual, code in reverse_replacements.items():
+            calc_str = calc_str.replace(visual, code)
+
+        # 3. Asegurar que todas las funciones tengan math.
+        math_functions = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan',
+                          'sinh', 'cosh', 'tanh', 'exp', 'log', 'log10', 'sqrt']
+
+        for func in math_functions:
+            # Solo agregar math. si no lo tiene ya
+            pattern = r'(?<!\bmath\.)\b' + func + r'\s*\('
+            calc_str = re.sub(pattern, 'math.' + func + '(', calc_str)
+
+        # 4. Manejar casos específicos comunes
+        calc_str = re.sub(r'\(\s*(.*?)\s*\)', r'(\1)', calc_str)  # limpiar paréntesis
+        calc_str = calc_str.replace(' ', '')  # eliminar espacios
+
+        print(f"DEBUG - Original: '{func_str}'")
+        print(f"DEBUG - Calculable: '{calc_str}'")
+
+        # 5. Crear función ejecutable
+        def f(x):
+            namespace = {'math': math, 'x': x}
+            try:
+                return eval(calc_str, {"__builtins__": {}}, namespace)
+            except Exception as e:
+                raise ValueError(f"No se pudo evaluar f({x}): {str(e)}")
+
+        # 6. Validar
+        try:
+            test_val = 1.0
+            result = f(test_val)
+            if not isinstance(result, (int, float)):
+                raise ValueError("La función debe devolver un número")
+            return f
+        except Exception as e:
+            raise ValueError(f"Función inválida: {str(e)}")
+
+    def _graficar_funcion(self):
+        """Grafica usando el parser de ejecución"""
+        try:
+            import matplotlib.pyplot as plt
+            import numpy as np
+
+            # USAR PARSER DE EJECUCIÓN, no el visual
+            func_str = self.fx_entry.get()
+            f = self._parse_calculation(func_str)
+            a = float(self.a_entry.get())
+            b = float(self.b_entry.get())
+
+            x = np.linspace(a, b, 400)
+            y = [f(xi) for xi in x]
+
+            plt.figure(figsize=(10, 6))
+            plt.plot(x, y, 'b-', linewidth=2, label=f'f(x) = {func_str}')
+            plt.axhline(y=0, color='k', linestyle='--', alpha=0.7)
+            plt.axvline(x=a, color='r', linestyle='--', alpha=0.7, label=f'a = {a}')
+            plt.axvline(x=b, color='g', linestyle='--', alpha=0.7, label=f'b = {b}')
+            plt.grid(True, alpha=0.3)
+            plt.xlabel('x')
+            plt.ylabel('f(x)')
+            plt.title('Gráfica de la función')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo graficar: {str(e)}")
 
     def _calc_biseccion(self):
-        from numericos import parse_function, biseccion, IntervaloInvalido, FuncionInvalida
-        # limpiar salidas
-        self._clear_biseccion()
-        # leer entradas
-        src = self.fx_entry.get().strip()
-        a = self.a_entry.get().strip()
-        b = self.b_entry.get().strip()
-        tol = self.tol_entry.get().strip()
-        maxit = self.maxit_entry.get().strip()
-        try:
-            # Preprocesar la función si contiene igualdad
-            funcion_para_calculo = self._preprocesar_funcion_igualdad(src)
-            f = parse_function(funcion_para_calculo)
-            a = float(a);
-            b = float(b)
-            tol = float(tol);
-            maxit = int(maxit)
-            usar = self.err_kind.get()
-            c, pasos, motivo = biseccion(f, a, b, tol=tol, max_iter=maxit, usar_error=usar)
-        except FuncionInvalida as e:
-            from tkinter import messagebox
-            messagebox.showerror("f(x) inválida", str(e));
-            return
-        except IntervaloInvalido as e:
-            from tkinter import messagebox
-            messagebox.showerror("Intervalo inválido", str(e));
-            return
-        except Exception as e:
-            from tkinter import messagebox
-            messagebox.showerror("Error", str(e));
-            return
+        """Calcula bisección usando parser de ejecución"""
+        # Limpiar tabla
+        for item in self.bis_tree.get_children():
+            self.bis_tree.delete(item)
 
-        # mostrar tabla
+        try:
+            # USAR PARSER DE EJECUCIÓN
+            func_str = self.fx_entry.get()
+            f = self._parse_calculation(func_str)  # ← CLAVE: parser diferente
+            a = float(self.a_entry.get())
+            b = float(self.b_entry.get())
+            tol = float(self.tol_entry.get())
+
+            # Validaciones...
+            if a >= b:
+                raise ValueError("Debe cumplirse: a < b")
+
+            # Resto del código de bisección...
+            raiz, pasos, motivo = biseccion(f, a, b, tol=tol, max_iter=100, usar_error="absoluto")
+
+            # Mostrar resultados...
+            self._mostrar_resultados_biseccion(pasos, raiz, motivo)
+
+        except Exception as e:
+            messagebox.showerror("Error en bisección", str(e))
+
+    def _buscar_intervalo_valido(self, f, a, b, max_intentos=10):
+        """Busca automáticamente un intervalo donde f(a)*f(b) < 0"""
+        paso = (b - a) / max_intentos
+        for i in range(max_intentos):
+            test_a = a + i * paso
+            test_b = b - i * paso
+            if f(test_a) * f(test_b) <= 0:
+                return test_a, test_b
+        return None
+
+    def _mostrar_raiz_inmediata(self, x, fx, punto):
+        """Muestra cuando se encuentra una raíz inmediatamente"""
+        self.result_label.config(text=f"Raíz encontrada en {punto} = {x:.8f} (f({x}) = {fx:.2e})")
+        # Mostrar en tabla
+        self.bis_tree.insert("", "end", values=(
+            "0", f"{x}", f"{x}", f"{x}",
+            f"{fx}", f"{fx}", f"{fx}", "0.0"
+        ))
+        self._update_status(f"Raíz encontrada en {punto}")
+
+    def _mostrar_resultados_biseccion(self, pasos, raiz, motivo):
+        """Muestra los resultados de la bisección en la tabla"""
         for row in pasos:
             def fmt(v):
                 try:
                     return f"{v:.8g}"
-                except Exception:
+                except:
                     return str(v)
+
+            # Formatear error (puede ser NaN en primera iteración)
+            error_str = "—" if (row.get("error") != row.get("error")) else fmt(row["error"])
 
             self.bis_tree.insert("", "end", values=(
                 row["k"], fmt(row["a"]), fmt(row["b"]), fmt(row["c"]),
-                fmt(row["fa"]), fmt(row["fb"]), fmt(row["fc"]),
-                ("—" if (row["error"] != row["error"]) else fmt(row["error"]))  # NaN → —
+                fmt(row["fa"]), fmt(row["fb"]), fmt(row["fc"]), error_str
             ))
 
-        # Formatear la función para mostrar
-        funcion_formateada = self._formatear_funcion(src)
+        # Resaltar última iteración
+        if pasos:
+            last_iid = self.bis_tree.get_children()[-1]
+            self.bis_tree.selection_set(last_iid)
+            self.bis_tree.focus(last_iid)
 
-        # resumen
-        self._bis_pasos = pasos
-        self._bis_result = c
-        self._bis_motivo = motivo
-        kfin = pasos[-1]["k"] if pasos else 0
-        fc = pasos[-1]["fc"] if pasos else float("nan")
-
-        # Determinar qué tipo de ecuación es
-        tipo_ecuacion = self._determinar_tipo_ecuacion(src)
-
-        self.bis_out.insert("end",
-                            f"Ecuación: {funcion_formateada}\n"
-                            f"Tipo: {tipo_ecuacion}\n"
-                            f"Intervalo inicial: [{a}, {b}]\n"
-                            f"Tolerancia: {tol} ({self.err_kind.get()})"
-                            f"Resultado:\n"
-                            f"  Solución ≈ {c:.10f}\n"
-                            f"  f(c) ≈ {fc:.8f}\n"
-                            f"  iteraciones = {kfin}\n"
-                            f"  motivo de paro: {motivo}\n\n"
-                            f"Nota: también se detiene si |f(c)| ≤ tol.\n"
-                            )
-        if hasattr(self, "lbl_result"):
-            self.lbl_result.config(text=f"Raíz ≈ {c:.5f} (bisección)")
-
-        self._update_status("Bisección finalizada.")
-
-    def _preprocesar_funcion_igualdad(self, funcion_str):
-        """
-        Convierte una ecuación con igualdad a una función f(x) = 0
-        Ejemplos:
-        - "x**2 = 5" -> "x**2 - 5"
-        - "f(x) = x**3 - 2" -> "x**3 - 2"
-        - "x**2 + 3*x = 10" -> "x**2 + 3*x - 10"
-        - "e^x = 2*x" -> "e^x - 2*x"
-        """
-        if '=' in funcion_str:
-            partes = funcion_str.split('=')
-            if len(partes) == 2:
-                izquierda = partes[0].strip()
-                derecha = partes[1].strip()
-
-                # Limpiar f(x) = si está presente
-                if izquierda.startswith('f(x)') or izquierda.startswith('f('):
-                    izquierda = izquierda.replace('f(x)', '').replace('f(', '').strip()
-                    if izquierda.startswith(')'):
-                        izquierda = izquierda[1:].strip()
-
-                # Si la izquierda está vacía después de quitar f(x), usar solo la derecha
-                if not izquierda or izquierda == '=':
-                    return derecha
-
-                # Construir la función restando ambos lados
-                return f"({izquierda}) - ({derecha})"
-
-        # Si no hay igualdad, devolver la función original
-        return funcion_str
-
-    def _determinar_tipo_ecuacion(self, funcion_str):
-        """Determina el tipo de ecuación para mostrar en el resultado"""
-        if '=' in funcion_str:
-            return "Ecuación con igualdad"
-        else:
-            return "Función f(x) = 0"
-
-    def _formatear_funcion(self, funcion_str):
-        """Convierte la función a un formato más legible"""
-        # Primero separar si hay igualdad
-        if '=' in funcion_str:
-            partes = funcion_str.split('=')
-            izquierda = self._formatear_parte_funcion(partes[0].strip())
-            derecha = self._formatear_parte_funcion(partes[1].strip())
-            return f"{izquierda} = {derecha}"
-        else:
-            return f"{self._formatear_parte_funcion(funcion_str)} = 0"
-
-    def _formatear_parte_funcion(self, parte_str):
-        """Formatea una parte de la función (sin igualdad)"""
-        # Reemplazos para formato matemático
-        replacements = {
-            '**2': '²',
-            '**3': '³',
-            '**4': '⁴',
-            '**': '^',
-            '^': 'ˆ',
-            '*': '·',
-            'exp(': 'e^(',
-            'log(': 'ln(',
-            'ln(': 'ln(',
-            'sqrt(': '√(',
-            'sin(': 'sen(',
-            'pi': 'π',
-            ' ': ''  # Eliminar espacios
-        }
-
-        # Aplicar reemplazos
-        formatted = parte_str
-        for old, new in replacements.items():
-            formatted = formatted.replace(old, new)
-
-        # Mejorar formato de fracciones y productos
-        import re
-
-        # Formato para multiplicaciones implícitas: 2x -> 2·x, x(x+1) -> x·(x+1)
-        formatted = re.sub(r'(\d)([a-zA-Z(])', r'\1·\2', formatted)
-        formatted = re.sub(r'([a-zA-Z0-9)])\s*\(', r'\1·(', formatted)
-
-        # Formato para exponentes negativos: x^-2 -> x⁻²
-        exp_replacements = {
-            '^-1': '⁻¹',
-            '^-2': '⁻²',
-            '^-3': '⁻³',
-            '^-4': '⁻⁴'
-        }
-
-        for exp, sup in exp_replacements.items():
-            formatted = formatted.replace(exp, sup)
-
-        return formatted
-
-    def _export_biseccion(self):
-        if not self._bis_pasos:
-            from tkinter import messagebox
-            messagebox.showinfo("Información", "No hay pasos para exportar.");
-            return
-        from tkinter import filedialog, messagebox
-        fp = filedialog.asksaveasfilename(defaultextension=".txt",
-                                          filetypes=[("Texto", "*.txt")],
-                                          title="Guardar pasos de bisección")
-        if not fp: return
-
-        # Obtener y formatear función
-        funcion_original = self.fx_entry.get().strip()
-        funcion_formateada = self._formatear_funcion(funcion_original)
-        funcion_para_calculo = self._preprocesar_funcion_igualdad(funcion_original)
-
-        with open(fp, "w", encoding="utf-8") as f:
-            f.write("Método de Bisección — Registro de iteraciones\n\n")
-            f.write(f"Ecuación: {funcion_formateada}\n")
-            f.write(f"Función utilizada: f(x) = {funcion_para_calculo}\n")
-            f.write(f"Expresión original: {funcion_original}\n\n")
-
-            f.write("Iter  a            b            c            f(a)         f(b)         f(c)         Error\n")
-            f.write("—" * 100 + "\n")
-
-            for r in self._bis_pasos:
-                error_str = 'NaN' if r['error'] != r['error'] else f"{r['error']:.6e}"
-                f.write(
-                    f"{r['k']:3d}  {r['a']:11.8f}  {r['b']:11.8f}  {r['c']:11.8f}  "
-                    f"{r['fa']:11.6e}  {r['fb']:11.6e}  {r['fc']:11.6e}  {error_str:>11}\n"
-                )
-
-            if self._bis_result is not None:
-                f.write("\n" + "=" * 60 + "\n")
-                f.write(f"Resultado: Solución ≈ {self._bis_result:.12f}\n")
-                f.write(f"f(solución) ≈ {self._bis_pasos[-1]['fc']:.6e}\n")
-                f.write(f"Motivo de paro: {self._bis_motivo}\n")
-                f.write(f"Iteraciones totales: {len(self._bis_pasos)}\n")
-
-        messagebox.showinfo("Listo", f"Registro exportado a: {fp}")
+        # Mostrar resultado final
+        self.result_label.config(text=f"Raíz ≈ {raiz:.8f} ({motivo})")
+        self._update_status("Bisección completada")
 
 if __name__ == "__main__":
     App().mainloop()
