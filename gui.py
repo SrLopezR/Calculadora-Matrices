@@ -1426,7 +1426,7 @@ class App(tk.Tk):
         ttk.Label(params_frame, text="Tolerancia:").grid(row=0, column=5, padx=(20, 2))
         self.tol_entry = tk.Entry(params_frame, width=12, font=("Consolas", 10))
         self.tol_entry.grid(row=0, column=6, padx=5)
-        self.tol_entry.insert(0, "0.0001")
+        self.tol_entry.insert(0, "0.00001")
 
         # Fila para botón de intervalo automático y botones de acción
         auto_frame = ttk.Frame(params_frame)
@@ -1640,9 +1640,9 @@ class App(tk.Tk):
             # Manejar tolerancia vacía (valor por defecto 0)
             tol_str = self.tol_entry.get().strip()
             if tol_str == "":
-                tol = 0.0001  # Valor por defecto
+                tol = 0.00001  # Valor por defecto
                 self.tol_entry.delete(0, tk.END)
-                self.tol_entry.insert(0, "0.0001")
+                self.tol_entry.insert(0, "0.00001")
             else:
                 tol = float(tol_str)
 
@@ -1673,7 +1673,7 @@ class App(tk.Tk):
         # Crear ventana emergente
         popup = tk.Toplevel(self)
         popup.title("Resultados - Método de Bisección")
-        popup.geometry("1020x900")
+        popup.geometry("1020x600")
         popup.minsize(800, 600)
         popup.transient(self)
         popup.grab_set()
@@ -1696,10 +1696,10 @@ class App(tk.Tk):
 
         # Frame para gráfica
         graph_frame = ttk.Labelframe(content_frame, text="Gráfica de la Función",
-                                     style="Card.TLabelframe", padding=6)
+                                     style="Card.TLabelframe", padding=8)
 
         # Crear figura de matplotlib
-        fig = plt.figure(figsize=(6, 4), dpi=100)
+        fig = plt.figure(figsize=(8, 5), dpi=100)
         canvas = FigureCanvasTkAgg(fig, master=graph_frame)
         canvas.draw()
         canvas.get_tk_widget().pack(fill="both", expand=True)
@@ -1721,14 +1721,14 @@ class App(tk.Tk):
         ax.legend()
 
         canvas.draw()
-        content_frame.add(graph_frame, weight=2)
+        content_frame.add(graph_frame, weight=3)
 
         # Frame para resultados
         results_frame = ttk.Labelframe(content_frame, text="Resultados del Cálculo",
-                                       style="Card.TLabelframe", padding=6)
+                                       style="Card.TLabelframe", padding=8)
 
         # Crear área de texto para resultados
-        results_text = make_text(results_frame, height=20, wrap="word")
+        results_text = tk.Text(results_frame, height=20, wrap="word", width=35)
         results_text.pack(fill="both", expand=True)
 
         # Configurar estilo del texto
@@ -1736,13 +1736,15 @@ class App(tk.Tk):
             background="#1E1E1E",
             foreground="#FFFFFF",
             font=("Cascadia Code", 10),
-            padx=10,
-            pady=10
+            padx=12,
+            pady=12,
+            spacing1=2,
+            spacing2=1,
+            spacing3=2
         )
 
         # Escribir resultados
         results_text.insert(tk.END, "RESULTADOS DEL MÉTODO DE BISECCIÓN\n")
-        results_text.insert(tk.END, "=" * 40 + "\n\n")
 
         results_text.insert(tk.END, "FUNCIÓN ANALIZADA:\n")
         results_text.insert(tk.END, f"f(x) = {self._convert_to_display(func_str)}\n\n")
@@ -1752,7 +1754,7 @@ class App(tk.Tk):
         results_text.insert(tk.END, f"b = {b:.8f}\n\n")
 
         results_text.insert(tk.END, "RESULTADO FINAL:\n")
-        results_text.insert(tk.END, "─" * 25 + "\n")
+        results_text.insert(tk.END, "─" * 20 + "\n")
         results_text.insert(tk.END, f"Raíz aproximada: {raiz:.10f}\n")
         results_text.insert(tk.END, f"f(raíz) ≈ {f(raiz):.2e}\n")
         results_text.insert(tk.END, f"Iteraciones: {len(pasos)}\n")
@@ -1767,19 +1769,12 @@ class App(tk.Tk):
         else:
             results_text.insert(tk.END, f"Error final: —\n")
 
-        results_text.insert(tk.END, f"Motivo: {motivo}\n\n")
-
         results_text.insert(tk.END, "CONFIGURACIÓN:\n")
         results_text.insert(tk.END, f"Tolerancia: {float(self.tol_entry.get()):.2e}\n")
-        results_text.insert(tk.END, f"Máximo de iteraciones: 100\n")
 
         results_text.config(state="disabled")
         content_frame.add(results_frame, weight=1)
 
-        # Botón de cerrar
-        close_btn = ttk.Button(main_frame, text="Cerrar",
-                               command=popup.destroy, style="Accent.TButton")
-        close_btn.pack(pady=10)
 
     def _mostrar_resultados_biseccion(self, pasos, raiz, motivo):
         """Muestra los resultados de la bisección en la tabla"""
