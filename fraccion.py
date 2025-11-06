@@ -1,75 +1,108 @@
-# fraccion.py
-# fraccion.py
+import math
 class Fraccion:
-    def __init__(self, num, den=1):
-        if isinstance(num, str) and den == 1:
-            f = parse_token(num)
-            self.num = f.num
-            self.den = f.den
-            return
+    def __init__(self, numerador, denominador=1):
+        if isinstance(numerador, str):
+            if '/' in numerador:
+                parts = numerador.split('/')
+                if len(parts) == 2:
+                    num = int(parts[0])
+                    den = int(parts[1])
+                else:
+                    raise ValueError("Formato de fracción inválido")
+            else:
+                num = int(numerador)
+                den = denominador
+        else:
+            num = numerador
+            den = denominador
+
         if den == 0:
             raise ZeroDivisionError("Denominador no puede ser cero")
-        if den < 0:
-            num, den = -num, -den
-        g = self.mcd(abs(int(num)), abs(int(den)))
-        self.num = int(num) // g
-        self.den = int(den) // g
 
-    @staticmethod
-    def mcd(a, b):
-        while b:
-            a, b = b, a % b
-        return a
+        # Simplificar
+        gcd_val = math.gcd(abs(num), abs(den))
+        self.numerador = num // gcd_val
+        self.denominador = den // gcd_val
 
-    def _coaccionar(self, v):
-        if isinstance(v, Fraccion):
-            return v
-        if isinstance(v, str):
-            return parse_token(v)
-        return Fraccion(v)
+        # Asegurar que el denominador sea positivo
+        if self.denominador < 0:
+            self.numerador = -self.numerador
+            self.denominador = -self.denominador
 
-    def __add__(self, otro):
-        o = self._coaccionar(otro)
-        return Fraccion(self.num * o.den + o.num * self.den, self.den * o.den)
+    def __add__(self, other):
+        if isinstance(other, int):
+            other = Fraccion(other)
+        num = self.numerador * other.denominador + other.numerador * self.denominador
+        den = self.denominador * other.denominador
+        return Fraccion(num, den)
 
-    def __sub__(self, otro):
-        o = self._coaccionar(otro)
-        return Fraccion(self.num * o.den - o.num * self.den, self.den * o.den)
+    def __sub__(self, other):
+        if isinstance(other, int):
+            other = Fraccion(other)
+        num = self.numerador * other.denominador - other.numerador * self.denominador
+        den = self.denominador * other.denominador
+        return Fraccion(num, den)
 
-    def __mul__(self, otro):
-        o = self._coaccionar(otro)
-        return Fraccion(self.num * o.num, self.den * o.den)
+    def __mul__(self, other):
+        if isinstance(other, int):
+            other = Fraccion(other)
+        num = self.numerador * other.numerador
+        den = self.denominador * other.denominador
+        return Fraccion(num, den)
 
-    def __truediv__(self, otro):
-        o = self._coaccionar(otro)
-        return Fraccion(self.num * o.den, self.den * o.num)
+    def __truediv__(self, other):
+        if isinstance(other, int):
+            other = Fraccion(other)
+        if other.numerador == 0:
+            raise ZeroDivisionError("División por cero")
+        num = self.numerador * other.denominador
+        den = self.denominador * other.numerador
+        return Fraccion(num, den)
+
+    def __eq__(self, other):
+        if isinstance(other, int):
+            other = Fraccion(other)
+        return (self.numerador * other.denominador ==
+                other.numerador * self.denominador)
+
+    def __lt__(self, other):
+        if isinstance(other, int):
+            other = Fraccion(other)
+        return (self.numerador * other.denominador <
+                other.numerador * self.denominador)
+
+    def __le__(self, other):
+        if isinstance(other, int):
+            other = Fraccion(other)
+        return (self.numerador * other.denominador <=
+                other.numerador * self.denominador)
+
+    def __gt__(self, other):
+        return not self.__le__(other)
+
+    def __ge__(self, other):
+        return not self.__lt__(other)
 
     def __neg__(self):
-        return Fraccion(-self.num, self.den)
-
-    def __eq__(self, otro):
-        o = self._coaccionar(otro)
-        return self.num == o.num and self.den == o.den
+        return Fraccion(-self.numerador, self.denominador)
 
     def __abs__(self):
-        return Fraccion(abs(self.num), self.den)
-
-    def es_cero(self):
-        return self.num == 0
-
-    def es_uno(self):
-        return self.num == 1 and self.den == 1
+        return Fraccion(abs(self.numerador), self.denominador)
 
     def __float__(self):
-        return self.num / self.den
+        return self.numerador / self.denominador
 
     def __str__(self):
-        return str(self.num) if self.den == 1 else f"{self.num}/{self.den}"
+        if self.denominador == 1:
+            return str(self.numerador)
+        else:
+            return f"{self.numerador}/{self.denominador}"
 
-def parse_token(t: str) -> Fraccion:
-    t = t.strip()
-    if '/' in t:
-        a, b = t.split('/')
-        return Fraccion(int(a), int(b))
-    else:
-        return Fraccion(int(t))
+    def __repr__(self):
+        return f"Fraccion({self.numerador}, {self.denominador})"
+
+    def es_cero(self):
+        return self.numerador == 0
+
+    def reciproco(self):
+        return Fraccion(self.denominador, self.numerador)

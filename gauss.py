@@ -1,197 +1,141 @@
 from fraccion import Fraccion
-from dataclasses import dataclass
-
-# ------------------------------------------------------------
-# Clase Step: representa un "paso" de operación elemental
-# ------------------------------------------------------------
-@dataclass
-class Step:
-    descripcion: str
-    matriz: list
-    pivote_row: int | None
-    pivote_col: int | None
+class PasoGauss:
+    def __init__(self, matriz, descripcion, pivote_row=None, pivote_col=None):
+        self.matriz = [[x for x in fila] for fila in matriz]  # Copia profunda
+        self.descripcion = descripcion
+        self.pivote_row = pivote_row
+        self.pivote_col = pivote_col
 
 
-# ------------------------------------------------------------
-# Clase principal del método de Gauss-Jordan
-# ------------------------------------------------------------
 class GaussJordanEngine:
-    def __init__(self, aug_matrix):
-        self.A = [fila[:] for fila in aug_matrix]   # Copia profunda de la matriz aumentada
-        self.m = len(self.A)                        # Número de filas (ecuaciones)
-        self.n = len(self.A[0]) - 1                 # Número de variables (columnas sin el término independiente)
-        self.fila = 0                               # Fila actual en proceso
-        self.col_pivotes = []                       # Columnas donde hay pivote (indican independencia lineal)
+    def __init__(self, matriz_aumentada):
+        self.matriz_original = [[x for x in fila] for fila in matriz_aumentada]
+        self.matriz_actual = [[x for x in fila] for fila in matriz_aumentada]
+        self.log = []
+        self.paso_actual = 0
+        self.filas = len(matriz_aumentada)
+        self.columnas = len(matriz_aumentada[0]) if matriz_aumentada else 0
         self.terminado = False
-        self.log = []                               # Historial de pasos realizados
-        self._snapshot("Inicio", None, None)        # Guarda el estado inicial de la matriz
+        self.fila_actual = 0
+        self.col_actual = 0
 
-    def _copy(self):
-        # Crea una copia de la matriz actual
-        return [[Fraccion(x.num, x.den) for x in fila] for fila in self.A]
+        # Registrar estado inicial
+        self._agregar_paso("Estado inicial")
 
-    def _snapshot(self, descripcion, prow, pcol):
-        # Registra un paso del método, con descripción y pivote usado
-        self.log.append(Step(descripcion, self._copy(), prow, pcol))
+    def _agregar_paso(self, descripcion, pivote_row=None, pivote_col=None):
+        paso = PasoGauss(self.matriz_actual, descripcion, pivote_row, pivote_col)
+        self.log.append(paso)
+        self.paso_actual += 1
 
-    # --------------------------------------------------------
-    # Realiza el siguiente paso del método de Gauss-Jordan
-    # --------------------------------------------------------
+    def _intercambiar_filas(self, i, j):
+        if i != j:
+            self.matriz_actual[i], self.matriz_actual[j] = self.matriz_actual[j], self.matriz_actual[i]
+            self._agregar_paso(f"Intercambiar fila {i + 1} con fila {j + 1}", i, self.col_actual)
+
+    def _multiplicar_fila(self, fila, escalar):
+        for j in range(self.columnas):
+            self.matriz_actual[fila][j] = self.matriz_actual[fila][j] * escalar
+        self._agregar_paso(f"Multiplicar fila {fila + 1} por {escalar}", fila, self.col_actual)
+
+    def _sumar_filas(self, fila_destino, fila_fuente, escalar):
+        for j in range(self.columnas):
+            self.matriz_actual[fila_destino][j] = (self.matriz_actual[fila_destino][j] +
+                                                   self.matriz_actual[fila_fuente][j] * escalar)
+        desc = f"F{fila_destino + 1} → F{fila_destino + 1} + ({escalar})×F{fila_fuente + 1}"
+        self._agregar_paso(desc, fila_destino, self.col_actual)
+
+    def _encontrar_pivote(self, fila_inicio, col):
+        for i in range(fila_inicio, self.filas):
+            if not self.matriz_actual[i][col].es_cero():
+                return i
+        return None
+
     def siguiente(self):
         if self.terminado:
             return None
 
-        while self.col_actual() < self.n and self.fila < self.m:
-            c = self.col_actual()   # Columna actual (variable en análisis)
-            sel = None
+        # Fase de eliminación hacia adelante
+        while self.fila_actual < self.filas and self.col_actual < self.columnas - 1:
+            # Buscar pivote en columna actual
+            fila_pivote = self._encontrar_pivote(self.fila_actual, self.col_actual)
 
-            # Búsqueda de fila con pivote ≠ 0 → determina independencia de esa columna
-            for r in range(self.fila, self.m):
-                if not self.A[r][c].es_cero():
-                    sel = r
-                    break
+            if fila_pivote is None:
+                # No hay pivote en esta columna, pasar a siguiente columna
+                self.col_actual += 1
+                continue
 
-            # Si no se encuentra pivote, la columna es combinación lineal de anteriores (dependiente)
-            if sel is None:
-                self._snapshot(f"No hay pivote en la columna {c+1}.", None, c)
-                self.col_pivotes.append(None)
-                self.fila += 1
+            # Mover fila con pivote a posición actual si es necesario
+            if fila_pivote != self.fila_actual:
+                self._intercambiar_filas(self.fila_actual, fila_pivote)
                 return self.log[-1]
 
-            # Si el pivote no está en la fila actual, se intercambian filas
-            if sel != self.fila:
-                self.A[self.fila], self.A[sel] = self.A[sel], self.A[self.fila]
-                self._snapshot(f"Intercambiar F{self.fila+1} ↔ F{sel+1}", self.fila, c)
+            # Normalizar fila pivote
+            pivote = self.matriz_actual[self.fila_actual][self.col_actual]
+            if pivote != Fraccion(1):
+                self._multiplicar_fila(self.fila_actual, pivote.reciproco())
                 return self.log[-1]
 
-            # Normaliza el pivote (hace que valga 1)
-            piv = self.A[self.fila][c]
-            if not piv.es_uno():
-                inv = Fraccion(piv.den, piv.num)
-                for j in range(c, self.n+1):
-                    self.A[self.fila][j] = self.A[self.fila][j] * inv
-                self._snapshot(f"Multiplicar F{self.fila+1} por 1/({piv}) para pivote = 1", self.fila, c)
-                return self.log[-1]
+            # Eliminar en otras filas
+            for i in range(self.filas):
+                if i != self.fila_actual and not self.matriz_actual[i][self.col_actual].es_cero():
+                    factor = -self.matriz_actual[i][self.col_actual]
+                    self._sumar_filas(i, self.fila_actual, factor)
+                    return self.log[-1]
 
-            # Elimina los valores en la misma columna (hace ceros arriba y abajo del pivote)
-            for r in range(self.m):
-                if r == self.fila:
-                    continue
-                factor = self.A[r][c]
-                if factor.es_cero():
-                    continue
-                for j in range(c, self.n+1):
-                    self.A[r][j] = self.A[r][j] - factor * self.A[self.fila][j]
-                self._snapshot(f"F{r+1} = F{r+1} - ({factor})·F{self.fila+1}", self.fila, c)
-                return self.log[-1]
+            self.fila_actual += 1
+            self.col_actual += 1
 
-            # Registra la columna como pivote → variable independiente (vector base)
-            self.col_pivotes.append(c)
-            self.fila += 1
-            return self.log[-1]
-
-        # Si ya no hay más columnas por procesar, el método terminó
-        self._snapshot("Fin Gauss-Jordan", None, None)
         self.terminado = True
+        self._agregar_paso("Proceso completado")
         return self.log[-1]
 
-    def col_actual(self):
-        return len(self.col_pivotes)
-
-    # --------------------------------------------------------
-    # Analiza el tipo de sistema: único, inconsistente o infinito
-    # --------------------------------------------------------
     def analizar(self):
-        """
-        Analiza el sistema y devuelve:
-        - tipo: inconsistente | única | infinitas
-        - solución o información adicional
-        - clasificación: homogéneo / no homogéneo, trivial / no trivial
-        """
-        A = self.A
-        m, n = self.m, self.n
+        """Analiza el sistema y devuelve información sobre la solución"""
+        if not self.terminado:
+            # Completar el proceso si no está terminado
+            while not self.terminado:
+                self.siguiente()
 
-        # Determina si es homogéneo (columna independiente = 0)
-        es_homogeneo = all(A[i][n].es_cero() for i in range(m))
+        matriz_reducida = self.matriz_actual
+        filas = self.filas
+        cols = self.columnas - 1  # Columnas sin el vector b
 
-        # Comprueba inconsistencia (fila de ceros = cte ≠ 0)
-        for i in range(m):
-            if all(A[i][j].es_cero() for j in range(n)) and not A[i][n].es_cero():
-                return ("inconsistente", None,
-                        {"tipo": "no homogéneo", "solucion": "ninguna"})
+        # Contar pivotes
+        pivotes = []
+        for i in range(filas):
+            for j in range(cols):
+                if not matriz_reducida[i][j].es_cero():
+                    pivotes.append((i, j))
+                    break
 
-        # Caso de solución única: todas las columnas son linealmente independientes
-        if len([x for x in self.col_pivotes if x is not None]) == n:
-            sol = [A[i][n] for i in range(n)]
-            clasificacion = {
-                "tipo": "homogéneo" if es_homogeneo else "no homogéneo",
-                "solucion": "trivial" if es_homogeneo and all(s.es_cero() for s in sol) else "única"
-            }
-            return ("única", sol, clasificacion)
+        rank_A = len(pivotes)
+        rank_AB = rank_A
 
-        # Caso de infinitas soluciones → hay variables libres (dependencia lineal)
-        libres = [j for j in range(n) if j not in self.col_pivotes]
-        particular = [Fraccion(0) for _ in range(n)]
+        # Verificar consistencia
+        for i in range(filas):
+            fila_cero = all(matriz_reducida[i][j].es_cero() for j in range(cols))
+            if fila_cero and not matriz_reducida[i][cols].es_cero():
+                return "inconsistente", {"rank_A": rank_A, "rank_AB": rank_AB}, {}
 
-        # Construye el vector solución particular
-        for i, pc in enumerate(self.col_pivotes):
-            if pc is not None:
-                particular[pc] = A[i][n]
+        if rank_A == cols:
+            return "única", {"rank_A": rank_A, "rank_AB": rank_AB}, {"solucion": "única"}
+        else:
+            return "infinitas", {"rank_A": rank_A, "rank_AB": rank_AB}, {"variables_libres": cols - rank_A}
 
-        # --------------------------------------------------------
-        # Construcción de la BASE del espacio nulo (N(A)):
-        # Cada vector 'vec' es un vector linealmente independiente
-        # que forma parte de la base del subespacio solución homogéneo.
-        # --------------------------------------------------------
-        base = []
-        for f in libres:
-            vec = [Fraccion(0) for _ in range(n)]
-            vec[f] = Fraccion(1)  # Se asigna 1 a la variable libre → genera un vector base
-            for i, pc in enumerate(self.col_pivotes):
-                if pc is not None:
-                    # Expresa las variables dependientes como combinación lineal de las libres
-                    vec[pc] = -A[i][f]
-            base.append(vec)  # Cada 'vec' es un vector independiente de los demás
-
-        clasificacion = {
-            "tipo": "homogéneo" if es_homogeneo else "no homogéneo",
-            "solucion": "no trivial"
-        }
-        return ("infinitas", (particular, libres, base), clasificacion)
-
-    # --------------------------------------------------------
-    # Muestra el conjunto solución en forma vectorial / paramétrica
-    # --------------------------------------------------------
     def conjunto_solucion(self, resultado):
-        """
-        Devuelve una representación del conjunto solución en forma paramétrica.
-        Reemplaza t1, t2... por x1, x2, x3...
-        """
+        """Genera descripción del conjunto solución"""
         tipo, data, clasificacion = resultado
 
-        # Sistema sin solución (espacio vacío)
-        if tipo == "inconsistente":
-            return "El sistema es inconsistente. No tiene solución."
-
-        # Sistema con solución única (punto en el espacio)
         if tipo == "única":
-            sol = data
-            sol_text = ", ".join(str(s) for s in sol)
-            return f"Solución única:\n(x1, x2, ..., xn) = ({sol_text})\nClasificación: {clasificacion}"
+            sol = []
+            for i in range(min(self.filas, self.columnas - 1)):
+                sol.append(self.matriz_actual[i][self.columnas - 1])
+            vars_str = ", ".join(f"x{i + 1} = {sol[i]}" for i in range(len(sol)))
+            return f"Solución única: {vars_str}"
 
-        # Sistema con infinitas soluciones → subespacio afín
-        if tipo == "infinitas":
-            particular, libres, base = data
-            out = "Solución general:\n"
-            part_str = "(" + ", ".join(str(x) for x in particular) + ")"
-            out += f"x = {part_str}"
+        elif tipo == "infinitas":
+            vars_libres = clasificacion.get("variables_libres", 0)
+            return f"Infinitas soluciones ({vars_libres} variable(s) libre(s))"
 
-            # Cada término xj*(vector) representa una combinación lineal
-            # de vectores base linealmente independientes.
-            for j, v in enumerate(base):
-                param = f"x{libres[j]+1}"  # Parámetro libre asociado al vector base
-                vec_str = "(" + ", ".join(str(x) for x in v) + ")"
-                out += f" + {param}*{vec_str}"
-
-            out += f"\nClasificación: {clasificacion}"
-            return out
+        else:  # inconsistente
+            return "Sistema inconsistente (sin solución)"

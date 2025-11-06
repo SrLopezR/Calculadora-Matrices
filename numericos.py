@@ -1,108 +1,128 @@
-# numericos.py
 import math
+from fraccion import Fraccion
 
-# ---------------------------
-# Parser seguro para f(x)
-# ---------------------------
-_ALLOWED = {
-    # constantes
-    "pi": math.pi, "e": math.e,
-    # funciones comunes
-    "sin": math.sin, "cos": math.cos, "tan": math.tan,
-    "asin": math.asin, "acos": math.acos, "atan": math.atan,
-    "sinh": math.sinh, "cosh": math.cosh, "tanh": math.tanh,
-    "exp": math.exp, "log": math.log, "log10": math.log10,
-    "sqrt": math.sqrt, "abs": abs, "ln": math.log,
-}
 
-class FuncionInvalida(Exception):
-    pass
-
-def parse_function(src: str):
+def biseccion(f, a, b, tol=1e-6, max_iter=100, usar_error="absoluto"):
     """
-    Devuelve una función f(x) evaluable de forma segura.
-    Uso: f = parse_function("x**3 - x - 2"); y = f(1.5)
+    Método de bisección para encontrar raíces de f(x) = 0 en [a, b]
+
+    Args:
+        f: función continua
+        a, b: extremos del intervalo
+        tol: tolerancia
+        max_iter: máximo número de iteraciones
+        usar_error: "absoluto" o "relativo"
+
+    Returns:
+        raiz: aproximación de la raíz
+        pasos: lista de diccionarios con información de cada iteración
+        motivo: razón de terminación
     """
-    if not isinstance(src, str) or not src.strip():
-        raise FuncionInvalida("Ingresa una expresión para f(x).")
-    code = compile(src, "<f>", "eval")
-    # bloqueamos nombres no permitidos
-    def f(x):
-        env = {"x": float(x)}
-        return float(eval(code, {"__builtins__": {}}, {**_ALLOWED, **env}))
-    # prueba rápida
-    try:
-        _ = f(0.0)
-    except Exception as e:
-        raise FuncionInvalida(f"Expresión inválida para f(x): {e}")
-    return f
 
-# ---------------------------
-# Errores numéricos
-# ---------------------------
-def error_absoluto(actual, anterior):
-    return abs(actual - anterior)
-
-def error_relativo(actual, anterior):
-    ea = error_absoluto(actual, anterior)
-    denom = abs(actual) if actual != 0 else 1.0
-    return ea / denom
-
-# ---------------------------
-# Bisección
-# ---------------------------
-class IntervaloInvalido(Exception):
-    pass
-
-def biseccion(f, a, b, tol=1e-4, max_iter=200, usar_error="absoluto"):
-    """
-    Devuelve (raiz_aprox, pasos:list[dict], motivo_paro:str)
-    pasos: [{'k':1,'a':..,'b':..,'c':..,'fa':..,'fb':..,'fc':..,'error':..}, ...]
-    usar_error: 'absoluto' | 'relativo'
-    """
-    a = float(a); b = float(b)
+    # Validaciones iniciales
     if a >= b:
-        raise IntervaloInvalido("Se requiere a < b.")
-    fa, fb = f(a), f(b)
-    if fa == 0:  # por si justo cae en extremo
-        return a, [{"k":0,"a":a,"b":b,"c":a,"fa":fa,"fb":fb,"fc":fa,"error":0.0}], "f(a)=0"
-    if fb == 0:
-        return b, [{"k":0,"a":a,"b":b,"c":b,"fa":fa,"fb":fb,"fc":fb,"error":0.0}], "f(b)=0"
+        raise ValueError("El intervalo debe cumplir a < b")
+
+    fa = f(a)
+    fb = f(b)
+
     if fa * fb > 0:
-        raise IntervaloInvalido("f(a) y f(b) deben tener signos opuestos (teorema del valor intermedio).")
+        raise ValueError("f(a) y f(b) deben tener signos opuestos (Teorema de Bolzano)")
 
     pasos = []
-    c_prev = None
-    motivo = "tol alcanzada"
-    for k in range(1, max_iter+1):
-        c = (a + b) / 2.0
+    iter_count = 0
+
+    # Verificar si los extremos son raíces
+    if abs(fa) < tol:
+        return a, [{"k": 0, "a": a, "b": b, "c": a, "fa": fa, "fb": fb, "fc": fa, "error": 0.0}], "Raíz en extremo a"
+
+    if abs(fb) < tol:
+        return b, [{"k": 0, "a": a, "b": b, "c": b, "fa": fa, "fb": fb, "fc": fb, "error": 0.0}], "Raíz en extremo b"
+
+    # Iteraciones de bisección
+    c_prev = a
+    for k in range(max_iter):
+        iter_count = k + 1
+        c = (a + b) / 2
         fc = f(c)
-        # error
-        if c_prev is None:
-            err = float('nan')
+
+        # Calcular error
+        if usar_error == "absoluto":
+            error = abs(c - c_prev) if k > 0 else float('inf')
+        else:  # relativo
+            error = abs((c - c_prev) / c) if k > 0 and c != 0 else float('inf')
+
+        # Guardar paso
+        paso = {
+            "k": iter_count,
+            "a": a,
+            "b": b,
+            "c": c,
+            "fa": fa,
+            "fb": fb,
+            "fc": fc,
+            "error": error
+        }
+        pasos.append(paso)
+
+        # Verificar convergencia
+        if abs(fc) < tol:
+            return c, pasos, f"Convergencia por |f(c)| < {tol}"
+
+        if k > 0 and error < tol:
+            return c, pasos, f"Convergencia por error < {tol}"
+
+        # Actualizar intervalo
+        if fa * fc < 0:
+            b = c
+            fb = fc
         else:
-            err = error_absoluto(c, c_prev) if usar_error == "absoluto" else error_relativo(c, c_prev)
-
-        pasos.append({
-            "k": k, "a": a, "b": b, "c": c,
-            "fa": fa, "fb": fb, "fc": fc,
-            "error": err
-        })
-
-        # criterios de paro
-        if abs(fc) <= tol:
-            motivo = "|f(c)| ≤ tol"
-            break
-        if c_prev is not None and err <= tol:
-            motivo = "error ≤ tol"
-            break
-
-        # actualización de intervalo
-        if fa * fb > 0:
-            a, fa = c, fc
-        else:
-            b, fb = c, fc
+            a = c
+            fa = fc
 
         c_prev = c
 
-    return c, pasos, motivo
+    # Si llegamos aquí, máximo de iteraciones
+    return c, pasos, f"Máximo de iteraciones ({max_iter}) alcanzado"
+
+
+def evaluar_funcion(func_str, x):
+    """
+    Evalúa una función matemática en un punto x
+    Soporta: +, -, *, /, **, sin, cos, tan, exp, log, sqrt, etc.
+    """
+    # Crear namespace seguro
+    namespace = {
+        'math': math,
+        'x': x,
+        'sin': math.sin,
+        'cos': math.cos,
+        'tan': math.tan,
+        'exp': math.exp,
+        'log': math.log,
+        'log10': math.log10,
+        'sqrt': math.sqrt,
+        'pi': math.pi,
+        'e': math.e
+    }
+
+    try:
+        result = eval(func_str, {"__builtins__": {}}, namespace)
+        return float(result)
+    except Exception as e:
+        raise ValueError(f"Error evaluando f({x}): {str(e)}")
+
+
+def verificar_continuidad(f, a, b, puntos=1000):
+    """
+    Verifica aproximadamente la continuidad en [a, b]
+    """
+    import numpy as np
+
+    x_vals = np.linspace(a, b, puntos)
+    try:
+        for x in x_vals:
+            f(x)
+        return True, "Función parece continua en el intervalo"
+    except Exception as e:
+        return False, f"Posible discontinuidad: {str(e)}"

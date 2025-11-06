@@ -1644,7 +1644,7 @@ class App(tk.Tk):
         try:
             # USAR PARSER DE EJECUCIÓN
             func_str = self.fx_entry.get()
-            f = self._parse_calculation(func_str)  # ← CLAVE: parser diferente
+            f = self._parse_calculation(func_str)
             a = float(self.a_entry.get())
             b = float(self.b_entry.get())
             tol = float(self.tol_entry.get())
