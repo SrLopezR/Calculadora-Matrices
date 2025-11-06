@@ -1,7 +1,6 @@
 import math
 from fraccion import Fraccion
 
-
 def biseccion(f, a, b, tol=1e-6, max_iter=100, usar_error="absoluto"):
     """
     Método de bisección para encontrar raíces de f(x) = 0 en [a, b]
@@ -126,3 +125,60 @@ def verificar_continuidad(f, a, b, puntos=1000):
         return True, "Función parece continua en el intervalo"
     except Exception as e:
         return False, f"Posible discontinuidad: {str(e)}"
+
+
+def encontrar_intervalo_automatico(f, centro=0, rango_inicial=10, max_intentos=20):
+    """
+     Búsqueda automática de un intervalo [a, b] donde f(a)*f(b) < 0
+    - Muestrea puntos en un rango creciente alrededor de `centro`
+    - Si encuentra un par consecutivo con cambio de signo devuelve ese par (intervalo ajustado)
+    - Si encuentra f(x)==0 devuelve un intervalo pequeño alrededor del punto y mensaje claro
+    - Si no encuentra, devuelve (-10, 10) con mensaje indicando fallback
+    """
+    import numpy as np
+
+    # Parámetros de muestreo
+    puntos_inicial = 201   # muestreo denso para detectar cambios de signo
+    for intento in range(max_intentos):
+        rango_actual = rango_inicial * (2 ** intento)
+        a = centro - rango_actual
+        b = centro + rango_actual
+
+        try:
+            # muestrear puntos de a a b
+            xs = np.linspace(a, b, puntos_inicial)
+            fs = []
+            for x in xs:
+                try:
+                    fs.append(float(f(x)))
+                except Exception:
+                    fs.append(float('nan'))
+
+            # inspeccionar valores buscando cambio de signo entre puntos consecutivos
+            for i in range(len(xs) - 1):
+                xa, xb = xs[i], xs[i+1]
+                fa, fb = fs[i], fs[i+1]
+
+                # si alguno es NaN, saltar
+                if fa != fa or fb != fb:
+                    continue
+
+                # si f(x) == 0 exactamente
+                if abs(fa) == 0.0:
+                    # devolver pequeño intervalo alrededor de xa
+                    return xa - 1e-3, xa + 1e-3, f"Raíz encontrada exactamente en x = {xa:.6g}"
+                if abs(fb) == 0.0:
+                    return xb - 1e-3, xb + 1e-3, f"Raíz encontrada exactamente en x = {xb:.6g}"
+
+                # cambio de signo entre fa y fb
+                if fa * fb < 0:
+                    # devolver intervalo ajustado [xa, xb]
+                    return xa, xb, f"Intervalo encontrado: [{xa:.6g}, {xb:.6g}] (muestreo en intento {intento+1})"
+
+            # si no hubo cambio de signo, repetir con rango mayor
+        except Exception:
+            # intentar siguiente intento
+            continue
+
+    # fallback si no se encontró intervalo útil
+    return -10.0, 10.0, "No se encontró intervalo con cambio de signo. Usando fallback [-10, 10]."
