@@ -1350,26 +1350,6 @@ class App(tk.Tk):
         self._update_status("Determinante calculado correctamente con Sarrus.")
 
     # -------- Métodos numéricos (raíces por Bisección) --------
-    import threading
-    import time
-    import tkinter as tk
-    from tkinter import ttk, messagebox, filedialog
-    from fraccion import Fraccion
-    from gauss import GaussJordanEngine
-    from matrices import (
-        sumar_matrices, multiplicar_matrices,
-        multiplicar_escalar_matriz, formatear_matriz, Transpuesta, determinante_matriz,
-        determinante_cofactores)
-    from numericos import biseccion
-    import matplotlib.pyplot as plt
-    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-    import numpy as np
-    import math
-    import re
-
-    # ... (el resto del código permanece igual hasta la pestaña de métodos numéricos)
-
-    # -------- Métodos numéricos (raíces por Bisección) --------
     def _tab_metodos_numericos(self):
         tab = ttk.Frame(self.nb)
         self.nb.add(tab, text="Método de Bisección")
@@ -1479,82 +1459,87 @@ class App(tk.Tk):
             self.fx_display.config(text="f(x) = ?")
 
     def _parse_calculation(self, func_str):
-        """Convierte texto matemático a una función ejecutable f(x)."""
-        import re, math
+        import re
+        import numpy as np
 
-        calc_str = func_str.strip()
+        calc_str = (func_str or "").strip()
         if not calc_str:
             return lambda x: 0
 
-        # Reemplazos básicos
-        replacements = {
-            '÷': '/', '×': '*', '·': '*', '^': '**',
-            'π': 'math.pi', 'e': 'math.e',
-            '{': '(', '}': ')', '[': '(', ']': ')',
-            'sen': 'sin', 'Sen': 'sin', 'SEN': 'sin'
+        calc_str = calc_str.replace("^", "**")
+        superscript_map = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789-")
+        calc_str = calc_str.translate(superscript_map)
+
+
+        calc_str = re.sub(r'(?<=\d)(?=[A-Za-z\(])', '*', calc_str)
+
+
+        calc_str = re.sub(r'(?<=[A-Za-z])(?=\d)', '*', calc_str)
+
+
+        calc_str = re.sub(r'\)\s*\(', ')*(', calc_str)
+
+
+        calc_str = re.sub(r'(?<=\))(?=[A-Za-z0-9])', '*', calc_str)
+
+
+        FUNC_NAMES = {
+            "sin", "cos", "tan", "asin", "acos", "atan",
+            "sinh", "cosh", "tanh", "exp", "sqrt", "abs",
+            "ln", "log", "log10", "pow", "np"
         }
-        for old, new in replacements.items():
-            calc_str = calc_str.replace(old, new)
 
-        # Reemplazo de superíndices
-        superscript_map = {
-            '²': '**2', '³': '**3', '⁴': '**4', '⁵': '**5',
-            '⁶': '**6', '⁷': '**7', '⁸': '**8', '⁹': '**9', '⁰': '**0'
+        def _mul_before_paren(m):
+            token = m.group(1)
+
+            if token in FUNC_NAMES:
+                return token + "("
+
+            return token + "*("
+
+        calc_str = re.sub(r'([A-Za-z0-9_]+)\s*\(', _mul_before_paren, calc_str)
+
+
+        try:
+            code = compile(calc_str, "<userfunc>", "eval")
+        except Exception as e:
+            raise ValueError(f"Invalid function expression: {e}")
+
+
+        def _log(x, base=None):
+            if base is None:
+                return np.log10(x)
+            return np.log(x) / np.log(base)
+
+
+        safe_globals = {
+            "__builtins__": None,
+            "sin": np.sin,
+            "cos": np.cos,
+            "tan": np.tan,
+            "asin": np.arcsin,
+            "acos": np.arccos,
+            "atan": np.arctan,
+            "sinh": np.sinh,
+            "cosh": np.cosh,
+            "tanh": np.tanh,
+            "exp": np.exp,
+            "sqrt": np.sqrt,
+            "abs": np.abs,
+            "pow": np.power,
+            "ln": np.log,
+            "log": _log,
+            "log10": np.log10,
+            "pi": np.pi,
+            "e": np.e,
+            "np": np,
         }
-        for sup, normal in superscript_map.items():
-            calc_str = calc_str.replace(sup, normal)
 
-        # Reemplazar funciones matemáticas por math.<func>
-        math_funcs = ['sin', 'cos', 'tan', 'sqrt', 'log', 'ln', 'exp']
-        for f in math_funcs:
-            pattern = r'\b' + f + r'\b'
-            if f == 'ln':
-                calc_str = re.sub(pattern, 'math.log', calc_str)
-            elif f == 'log':
-                # log(x) se interpreta como log base 10
-                calc_str = re.sub(pattern, 'math.log10', calc_str)
-            else:
-                calc_str = re.sub(pattern, f'math.{f}', calc_str)
-
-        # Eliminar posibles repeticiones "math.math."
-        calc_str = calc_str.replace("math.math.", "math.")
-
-        # Multiplicaciones implícitas
-        calc_str = re.sub(r'(\d)([a-zA-Z\(])', r'\1*\2', calc_str)
-        calc_str = re.sub(r'([a-zA-Z\)])(\d)', r'\1*\2', calc_str)
-
-        # Validar paréntesis
-        stack = []
-        for ch in calc_str:
-            if ch == '(':
-                stack.append(ch)
-            elif ch == ')':
-                if not stack:
-                    raise ValueError("Paréntesis no balanceados.")
-                stack.pop()
-        if stack:
-            raise ValueError("Paréntesis no balanceados.")
-
-        # Si no hay x, tratar como constante
-        if 'x' not in calc_str:
-            try:
-                val = eval(calc_str, {"math": math, "__builtins__": {}})
-                return lambda x: val
-            except Exception as e:
-                raise ValueError(f"Expresión constante inválida: {e}")
-
-        # Crear función evaluable
         def f(x):
             try:
-                return eval(calc_str, {"math": math, "x": x, "__builtins__": {}})
+                return eval(code, safe_globals, {"x": x})
             except Exception as e:
-                raise ValueError(f"Error al evaluar f({x}): {e}\nExpresión: {calc_str}")
-
-        # Test de validación
-        try:
-            _ = f(1.0)
-        except Exception as e:
-            raise ValueError(f"Función inválida: {e}\nExpresión: {calc_str}")
+                raise ValueError(f"Error evaluating function at x={x}: {e}")
 
         return f
 
@@ -1575,9 +1560,12 @@ class App(tk.Tk):
             'math.sin': 'sin',
             'math.cos': 'cos',
             'math.tan': 'tan',
-            'math.sqrt': '√',
-            'math.exp': 'exp',
-            'math.pi': 'π'
+            'math.acos': 'acos',
+            'math.asin': 'asin',
+            'math.atan': 'atan',
+            'sqrt': '√',
+            'exp': 'e',
+            'pi': 'π'
         }
 
         for py_func, display_func in function_display.items():
