@@ -1840,7 +1840,7 @@ class App(tk.Tk):
             results_text.insert(tk.END, f"Error final: —\n")
 
         results_text.insert(tk.END, "CONFIGURACIÓN:\n")
-        results_text.insert(tk.END, f"Tolerancia: {float(self.tol_entry.get()):.2e}\n")
+        results_text.insert(tk.END, f"Tolerancia: {float(self.tol_entry.get()):.8f}\n")
 
         results_text.config(state="disabled")
         content_frame.add(results_frame, weight=1)
@@ -1910,7 +1910,7 @@ class App(tk.Tk):
 
         ttk.Label(params, text="Tolerancia:").grid(row=0, column=4, sticky="e", padx=4, pady=2)
         self.tol_entry_fp = ttk.Entry(params, width=12); self.tol_entry_fp.grid(row=0, column=5, padx=4, pady=2)
-        self.tol_entry_fp.insert(0, "1e-6")
+        self.tol_entry_fp.insert(0, "0.00001")
 
         # --- Botones
         auto_frame = ttk.Frame(frame)
@@ -1963,9 +1963,9 @@ class App(tk.Tk):
             # tabla
             for p in pasos:
                 self.fp_tree.insert("", "end", values=(
-                    p["k"], f"{p['a']:.8f}", f"{p['b']:.8f}", f"{p['c']:.8f}",
-                    f"{p['fa']:.3e}", f"{p['fb']:.3e}", f"{p['fc']:.3e}",
-                    f"{p['error']:.3e}" if p["error"] != float('inf') else "—"
+                    p["k"], f"{p['a']:.6f}", f"{p['b']:.6f}", f"{p['c']:.6f}",
+                    f"{p['fa']:.6f}", f"{p['fb']:.6f}", f"{p['fc']:.6f}",
+                    f"{p['error']:.6f}" if p["error"] != float('inf') else "—"
                 ))
             # popup
             self._mostrar_resultados_popup_fp(func_str, f, a, b, raiz, pasos, motivo)
@@ -2044,7 +2044,7 @@ class App(tk.Tk):
             if not func_str:
                 raise ValueError("Ingresa una expresión para f(x).")
             f = self._parse_calculation(func_str)
-            a = float(self.a_entry_fp.get()); b = float(self.b_entry_fp.get())
+            a = -5; b = 5
         except Exception:
             # fallback: intenta encontrar intervalo y reintenta
             f = self._parse_calculation(self.fx_entry_fp.get().strip())

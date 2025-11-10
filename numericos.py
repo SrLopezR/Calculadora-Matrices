@@ -206,7 +206,7 @@ def falsa_posicion(f, a, b, tol=1e-6, max_iter=100, usar_error="absoluto"):
     c_prev = a
     for k in range(1, max_iter + 1):
         # Regla falsa: intersección lineal
-        c = b - fb * (b - a) / (fb - fa)
+        c = b - ((fb * (b - a)) / (fb - fa))
         fc = f(c)
 
         # error absoluto o relativo
