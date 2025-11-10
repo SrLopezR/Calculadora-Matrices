@@ -1415,6 +1415,10 @@ class App(tk.Tk):
         ttk.Button(auto_frame, text="Buscar Intervalo Automático",
                    command=self._buscar_intervalo_valido).pack(side="left", padx=6)
 
+        # NUEVO: Botón para graficar antes de calcular
+        ttk.Button(auto_frame, text="Graficar función",
+                   command=self._graficar_funcion).pack(side="left", padx=6)
+
         self.calc_btn = ttk.Button(auto_frame, text="Calcular Bisección",
                                    style="Accent.TButton",
                                    command=self._calc_biseccion)
@@ -1422,7 +1426,7 @@ class App(tk.Tk):
 
         ttk.Button(auto_frame, text="Limpiar",
                    command=self._limpiar_biseccion).pack(side="left", padx=6)
-
+        
         # ---- Tabla de iteraciones ----
         table_frame = ttk.LabelFrame(frame, text="Iteraciones del Método de Bisección", padding=8)
         table_frame.pack(fill="both", expand=True, pady=10)
@@ -1605,6 +1609,82 @@ class App(tk.Tk):
 
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo encontrar intervalo automático: {str(e)}")
+
+    def _graficar_funcion(self):
+        """Muestra una vista previa de f(x) en el intervalo [a, b] sin ejecutar la bisección."""
+        try:
+            func_str = self.fx_entry.get().strip()
+            if not func_str:
+                raise ValueError("Ingresa una expresión para f(x).")
+
+            f = self._parse_calculation(func_str)
+
+            # Intentar leer a y b; si no son válidos, buscar intervalo automático
+            a_txt = self.a_entry.get().strip()
+            b_txt = self.b_entry.get().strip()
+
+            try:
+                a = float(a_txt)
+                b = float(b_txt)
+            except Exception:
+                # Fallback: buscar intervalo automáticamente y actualizar entradas
+                from numericos import encontrar_intervalo_automatico
+                a, b, _ = encontrar_intervalo_automatico(f)
+                self.a_entry.delete(0, tk.END); self.a_entry.insert(0, f"{a:.6f}")
+                self.b_entry.delete(0, tk.END); self.b_entry.insert(0, f"{b:.6f}")
+
+            # Asegurar orden y evitar intervalo degenerado
+            if a > b:
+                a, b = b, a
+            if a == b:
+                a -= 1.0
+                b += 1.0
+
+            # Crear ventana emergente
+            popup = tk.Toplevel(self)
+            popup.title("Vista previa de f(x)")
+            popup.geometry("900x550")
+            popup.minsize(700, 450)
+            popup.transient(self)
+            popup.grab_set()
+            configurar_estilo_oscuro(popup)
+
+            # Contenedor
+            container = ttk.Frame(popup, padding=10)
+            container.pack(fill="both", expand=True)
+
+            # Figura de Matplotlib
+            fig = plt.figure(figsize=(8, 4.8), dpi=100)
+            ax = fig.add_subplot(111)
+
+            # Preparar datos
+            import numpy as np
+            margen = 0.1 * (b - a if b != a else 1.0)
+            xs = np.linspace(a - margen, b + margen, 600)
+            ys = []
+            for x in xs:
+                try:
+                    ys.append(f(x))
+                except Exception:
+                    ys.append(np.nan)
+
+            # Graficar
+            ax.plot(xs, ys, linewidth=2, label=f'f(x) = {self._convert_to_display(func_str)}')
+            ax.axhline(0, color='k', linestyle='--', alpha=0.7)
+            ax.axvline(a, color='r', linestyle='--', alpha=0.7, label=f'a = {a:.4f}')
+            ax.axvline(b, color='g', linestyle='--', alpha=0.7, label=f'b = {b:.4f}')
+            ax.set_xlabel('x')
+            ax.set_ylabel('f(x)')
+            ax.set_title('Vista previa de f(x) en el intervalo')
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+
+            canvas = FigureCanvasTkAgg(fig, master=container)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        except Exception as e:
+            messagebox.showerror("No se pudo graficar", str(e))
 
     def _limpiar_biseccion(self):
         """Limpia todos los resultados de bisección"""
