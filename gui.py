@@ -241,6 +241,8 @@ class App(tk.Tk):
         self._tab_cramer()
         self._tab_sarrus()
         self._tab_metodos_numericos()
+        self._tab_falsa_posicion()
+
 
         # Resultado general + estado
         result_card = ttk.Labelframe(self, text="Resultado", style="Card.TLabelframe", padding=8)
@@ -1869,6 +1871,223 @@ class App(tk.Tk):
             self.bis_tree.focus(last_iid)
 
         self._update_status("Bisección completada")
+
+    # -------- Falsa Posicion --------
+    def _tab_falsa_posicion(self):
+        tab = ttk.Frame(self.nb)
+        self.nb.add(tab, text="Falsa Posición")
+
+        frame = ttk.Frame(tab, padding=10)
+        frame.pack(fill="both", expand=True)
+
+        # --- Título y descripción
+        title_frame = ttk.Frame(frame)
+        title_frame.pack(fill="x", pady=(0, 10))
+        ttk.Label(title_frame, text="Método de la Falsa Posición (Regula Falsi)",
+                font=("Times New Roman", 14, "bold")).pack(anchor="w")
+        ttk.Label(title_frame, text="Resuelve f(x)=0 en [a,b] usando intersecciones lineales sucesivas.",
+                font=("Times New Roman", 10)).pack(anchor="w")
+
+        # --- Entrada de función
+        func_frame = ttk.LabelFrame(frame, text="Función", padding=8)
+        func_frame.pack(fill="x")
+        ttk.Label(func_frame, text="f(x) =").pack(side="left", padx=(4, 6))
+        self.fx_entry_fp = ttk.Entry(func_frame, width=48)
+        self.fx_entry_fp.pack(side="left", fill="x", expand=True)
+        self.fx_entry_fp.insert(0, "x**3 - x - 2")  # ejemplo
+
+        # --- Parámetros
+        params = ttk.LabelFrame(frame, text="Parámetros", padding=8)
+        params.pack(fill="x", pady=10)
+
+        ttk.Label(params, text="a =").grid(row=0, column=0, sticky="e", padx=4, pady=2)
+        self.a_entry_fp = ttk.Entry(params, width=12); self.a_entry_fp.grid(row=0, column=1, padx=4, pady=2)
+        self.a_entry_fp.insert(0, "1")
+
+        ttk.Label(params, text="b =").grid(row=0, column=2, sticky="e", padx=4, pady=2)
+        self.b_entry_fp = ttk.Entry(params, width=12); self.b_entry_fp.grid(row=0, column=3, padx=4, pady=2)
+        self.b_entry_fp.insert(0, "2")
+
+        ttk.Label(params, text="Tolerancia:").grid(row=0, column=4, sticky="e", padx=4, pady=2)
+        self.tol_entry_fp = ttk.Entry(params, width=12); self.tol_entry_fp.grid(row=0, column=5, padx=4, pady=2)
+        self.tol_entry_fp.insert(0, "1e-6")
+
+        # --- Botones
+        auto_frame = ttk.Frame(frame)
+        auto_frame.pack(fill="x", pady=(0, 8))
+        ttk.Button(auto_frame, text="Buscar Intervalo Automático",
+                command=self._buscar_intervalo_valido_fp).pack(side="left", padx=6)
+        ttk.Button(auto_frame, text="Graficar función",
+                command=self._graficar_funcion_fp).pack(side="left", padx=6)
+        ttk.Button(auto_frame, text="Calcular Falsa Posición",
+                style="Accent.TButton", command=self._calc_falsa_posicion).pack(side="left", padx=6)
+        ttk.Button(auto_frame, text="Limpiar",
+                command=self._limpiar_fp).pack(side="left", padx=6)
+
+        # --- Tabla de iteraciones
+        table_frame = ttk.LabelFrame(frame, text="Iteraciones del Método de Falsa Posición", padding=8)
+        table_frame.pack(fill="both", expand=True, pady=10)
+
+        columns = ("k","a","b","c","f(a)","f(b)","f(c)","error")
+        self.fp_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=15)
+        for col, texto, w in zip(columns, ["k","a","b","c","f(a)","f(b)","f(c)","Error"],
+                                [50, 90, 90, 90, 100, 100, 100, 90]):
+            self.fp_tree.heading(col, text=texto)
+            self.fp_tree.column(col, width=w, anchor="center")
+        yscroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.fp_tree.yview)
+        self.fp_tree.configure(yscrollcommand=yscroll.set)
+        self.fp_tree.pack(side="left", fill="both", expand=True)
+        yscroll.pack(side="right", fill="y")
+
+        # --- Estado
+        status = ttk.Frame(frame); status.pack(fill="x")
+        self.fp_status = ttk.Label(status, text="Listo para calcular", font=("Times New Roman", 9))
+        self.fp_status.pack(anchor="w")
+
+    def _calc_falsa_posicion(self):
+        # limpiar tabla
+        for it in self.fp_tree.get_children():
+            self.fp_tree.delete(it)
+        try:
+            func_str = self.fx_entry_fp.get().strip()
+            if not func_str:
+                raise ValueError("Ingresa una expresión para f(x).")
+            f = self._parse_calculation(func_str)
+            a = float(self.a_entry_fp.get()); b = float(self.b_entry_fp.get())
+            tol_txt = (self.tol_entry_fp.get() or "").strip()
+            tol = float(tol_txt) if tol_txt not in ("",) else 1e-6
+            if a >= b:
+                raise ValueError("Debe cumplirse a < b.")
+            from numericos import falsa_posicion
+            raiz, pasos, motivo = falsa_posicion(f, a, b, tol=tol, max_iter=100, usar_error="absoluto")
+            # tabla
+            for p in pasos:
+                self.fp_tree.insert("", "end", values=(
+                    p["k"], f"{p['a']:.8f}", f"{p['b']:.8f}", f"{p['c']:.8f}",
+                    f"{p['fa']:.3e}", f"{p['fb']:.3e}", f"{p['fc']:.3e}",
+                    f"{p['error']:.3e}" if p["error"] != float('inf') else "—"
+                ))
+            # popup
+            self._mostrar_resultados_popup_fp(func_str, f, a, b, raiz, pasos, motivo)
+            self.fp_status.config(text=f"Falsa Posición completada - {len(pasos)} iteraciones")
+            if hasattr(self, "lbl_result"):
+                self.lbl_result.config(text=f"Raíz ≈ {raiz:.8f} ({motivo})")
+        except Exception as e:
+            messagebox.showerror("Error en Falsa Posición", str(e))
+
+    def _mostrar_resultados_popup_fp(self, func_str, f, a, b, raiz, pasos, motivo):
+        popup = tk.Toplevel(self)
+        popup.title("Resultados - Método de Falsa Posición")
+        popup.geometry("1020x600"); popup.minsize(800, 600)
+        popup.transient(self); popup.grab_set()
+        configurar_estilo_oscuro(popup)
+
+        main = ttk.Frame(popup, padding=10); main.pack(fill="both", expand=True)
+        ttk.Label(main, text="Resultados del Método de Falsa Posición",
+                font=("Times New Roman", 13, "bold")).pack(anchor="w", pady=(0,6))
+
+        top = ttk.Frame(main); top.pack(fill="both", expand=True)
+
+        # --- Gráfica
+        fig = plt.figure(figsize=(6.2, 3.6), dpi=100)
+        ax = fig.add_subplot(111)
+        margen = 0.1 * (b - a if b != a else 1.0)
+        xs = np.linspace(a - margen, b + margen, 600)
+        ys = []
+        for x in xs:
+            try: ys.append(f(x))
+            except Exception: ys.append(np.nan)
+        ax.plot(xs, ys, linewidth=2, label=f"f(x) = {self._convert_to_display(func_str)}")
+        ax.axhline(0, color="k", linestyle="--", alpha=0.7)
+        ax.axvline(a, color="r", linestyle="--", alpha=0.7, label=f"a={a:.4f}")
+        ax.axvline(b, color="g", linestyle="--", alpha=0.7, label=f"b={b:.4f}")
+        ax.axvline(raiz, color="c", linestyle="-.", alpha=0.9, label=f"c≈{raiz:.6f}")
+        ax.set_xlabel("x"); ax.set_ylabel("f(x)")
+        ax.set_title("Vista de f(x) e iterado final")
+        ax.grid(True, alpha=0.3); ax.legend(loc="best")
+
+        left = ttk.Labelframe(top, text="Gráfica", padding=6)
+        left.pack(side="left", fill="both", expand=True, padx=(0,8))
+        canvas = FigureCanvasTkAgg(fig, master=left)
+        canvas.draw(); canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        # --- Resumen y tabla compacta
+        right = ttk.Labelframe(top, text="Resumen", padding=8)
+        right.pack(side="left", fill="both", expand=True)
+
+        resumen_txt = (
+            f"f(x) = {self._convert_to_display(func_str)}\n"
+            f"Intervalo: [{a:.6f}, {b:.6f}]\n"
+            f"Raíz ≈ {raiz:.10f}\n"
+            f"Iteraciones: {len(pasos)}\n"
+            f"Motivo: {motivo}"
+        )
+        ttk.Label(right, text=resumen_txt, justify="left").pack(anchor="w")
+
+    def _buscar_intervalo_valido_fp(self):
+        try:
+            func_str = self.fx_entry_fp.get().strip()
+            if not func_str:
+                raise ValueError("Ingresa una expresión para f(x).")
+            f = self._parse_calculation(func_str)
+            from numericos import encontrar_intervalo_automatico
+            a, b, info = encontrar_intervalo_automatico(f)
+            self.a_entry_fp.delete(0, tk.END); self.a_entry_fp.insert(0, f"{a:.6f}")
+            self.b_entry_fp.delete(0, tk.END); self.b_entry_fp.insert(0, f"{b:.6f}")
+            self.fp_status.config(text=info)
+        except Exception as e:
+            messagebox.showerror("Búsqueda de intervalo", str(e))
+
+    def _graficar_funcion_fp(self):
+        try:
+            func_str = self.fx_entry_fp.get().strip()
+            if not func_str:
+                raise ValueError("Ingresa una expresión para f(x).")
+            f = self._parse_calculation(func_str)
+            a = float(self.a_entry_fp.get()); b = float(self.b_entry_fp.get())
+        except Exception:
+            # fallback: intenta encontrar intervalo y reintenta
+            f = self._parse_calculation(self.fx_entry_fp.get().strip())
+            from numericos import encontrar_intervalo_automatico
+            a, b, _ = encontrar_intervalo_automatico(f)
+            self.a_entry_fp.delete(0, tk.END); self.a_entry_fp.insert(0, f"{a:.6f}")
+            self.b_entry_fp.delete(0, tk.END); self.b_entry_fp.insert(0, f"{b:.6f}")
+
+        if a > b: a, b = b, a
+        if a == b: a -= 1.0; b += 1.0
+
+        popup = tk.Toplevel(self)
+        popup.title("Vista previa de f(x)")
+        popup.geometry("900x550"); popup.minsize(700, 450)
+        popup.transient(self); popup.grab_set()
+        configurar_estilo_oscuro(popup)
+
+        container = ttk.Frame(popup, padding=10); container.pack(fill="both", expand=True)
+
+        fig = plt.figure(figsize=(8, 4.8), dpi=100); ax = fig.add_subplot(111)
+        margen = 0.1 * (b - a if b != a else 1.0)
+        xs = np.linspace(a - margen, b + margen, 600)
+        ys = []
+        for x in xs:
+            try: ys.append(f(x))
+            except Exception: ys.append(np.nan)
+        ax.plot(xs, ys, linewidth=2, label=f"f(x) = {self._convert_to_display(self.fx_entry_fp.get())}")
+        ax.axhline(0, color='k', linestyle='--', alpha=0.7)
+        ax.axvline(a, color='r', linestyle='--', alpha=0.7, label=f'a = {a:.4f}')
+        ax.axvline(b, color='g', linestyle='--', alpha=0.7, label=f'b = {b:.4f}')
+        ax.set_xlabel('x'); ax.set_ylabel('f(x)')
+        ax.set_title('Vista previa de f(x) en el intervalo'); ax.grid(True, alpha=0.3); ax.legend()
+        canvas = FigureCanvasTkAgg(fig, master=container); canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True)
+
+    def _limpiar_fp(self):
+        self.fx_entry_fp.delete(0, tk.END)
+        self.a_entry_fp.delete(0, tk.END)
+        self.b_entry_fp.delete(0, tk.END)
+        self.tol_entry_fp.delete(0, tk.END)
+        for it in self.fp_tree.get_children():
+            self.fp_tree.delete(it)
+        self.fp_status.config(text="Listo para calcular")
 
 if __name__ == "__main__":
     App().mainloop()

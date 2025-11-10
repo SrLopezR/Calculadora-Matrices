@@ -182,3 +182,54 @@ def encontrar_intervalo_automatico(f, centro=0, rango_inicial=10, max_intentos=2
 
     # fallback si no se encontró intervalo útil
     return -10.0, 10.0, "No se encontró intervalo con cambio de signo. Usando fallback [-10, 10]."
+
+def falsa_posicion(f, a, b, tol=1e-6, max_iter=100, usar_error="absoluto"):
+    """
+    Método de la Falsa Posición (Regula Falsi) para f(x)=0 en [a,b].
+    Devuelve: (raiz, pasos, motivo)
+      - raiz: aproximación de la raíz
+      - pasos: lista de dicts con k,a,b,c,fa,fb,fc,error
+      - motivo: texto de motivo de paro
+    """
+    fa = f(a)
+    fb = f(b)
+
+    if fa == fa and abs(fa) < tol:
+        return a, [{"k": 0, "a": a, "b": b, "c": a, "fa": fa, "fb": fb, "fc": fa, "error": 0.0}], "Raíz en extremo a"
+    if fb == fb and abs(fb) < tol:
+        return b, [{"k": 0, "a": a, "b": b, "c": b, "fa": fa, "fb": fb, "fc": fb, "error": 0.0}], "Raíz en extremo b"
+
+    if fa * fb > 0:
+        raise ValueError("f(a) y f(b) deben tener signos opuestos (Bolzano).")
+
+    pasos = []
+    c_prev = a
+    for k in range(1, max_iter + 1):
+        # Regla falsa: intersección lineal
+        c = b - fb * (b - a) / (fb - fa)
+        fc = f(c)
+
+        # error absoluto o relativo
+        if usar_error == "relativo" and c != 0:
+            error = abs((c - c_prev) / c) if k > 1 else float('inf')
+        else:
+            error = abs(c - c_prev) if k > 1 else float('inf')
+
+        pasos.append({
+            "k": k, "a": a, "b": b, "c": c,
+            "fa": fa, "fb": fb, "fc": fc, "error": error
+        })
+
+        # criterios de paro
+        if abs(fc) <= tol or error <= tol:
+            return c, pasos, f"Convergencia: |f(c)| ≤ tol o error ≤ tol en k={k}"
+
+        # Actualizar intervalo preservando cambio de signo
+        if fa * fc < 0:
+            b, fb = c, fc
+        else:
+            a, fa = c, fc
+
+        c_prev = c
+
+    return c, pasos, f"Máximo de iteraciones ({max_iter}) alcanzado"
