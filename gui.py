@@ -3,7 +3,7 @@ import time
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from fraccion import Fraccion
-from gauss import GaussJordanEngine
+from gauss import GaussJordanEngine,GaussEngine
 from matrices import (
     sumar_matrices, multiplicar_matrices,
     multiplicar_escalar_matriz, formatear_matriz, Transpuesta, determinante_matriz,
@@ -193,6 +193,11 @@ class App(tk.Tk):
         self.auto_running = False
         self.auto_thread = None
         self.btn_auto = None  # se crea dentro de la pestaña Gauss
+         # Motor exclusivo para la pestaña de Gauss (el método sencillo)
+        self.engine_gauss = None
+        self.auto_running_gauss = False
+        self.auto_thread_gauss = None
+        self.btn_auto_gauss = None
 
         self._build_ui()
 
@@ -231,6 +236,7 @@ class App(tk.Tk):
 
         # Pestañas
         self._tab_gauss()
+        self._tab_gauss_simple() 
         self._tab_suma()
         self._tab_mult()
         self._tab_escalar()
@@ -273,6 +279,8 @@ class App(tk.Tk):
         self.matrix_input.clear()
         self.txt_log.delete(1.0, tk.END)
         self.lbl_result.config(text="—")
+        if hasattr(self, "txt_solution"):
+            self.txt_solution.delete(1.0, tk.END)
 
     def start_engine(self):
         try:
@@ -283,6 +291,9 @@ class App(tk.Tk):
         self._render_last_step()
         self._log("Inicializado. Use 'Siguiente paso' o 'Reproducir'.")
         self._update_status("Listo para ejecutar.")
+        self.lbl_result.config(text="—")
+        if hasattr(self, "txt_solution"):
+            self.txt_solution.delete(1.0, tk.END)
 
     def next_step(self):
         if not self.engine:
@@ -318,6 +329,8 @@ class App(tk.Tk):
         self.txt_log.delete(1.0, tk.END)
         self.matrix_view.set_matrix([[Fraccion(0)]])
         self.lbl_result.config(text="—")
+        if hasattr(self, "txt_solution"):
+            self.txt_solution.delete(1.0, tk.END)
         self._update_status("Reiniciado.")
 
     def export_log(self):
@@ -347,10 +360,29 @@ class App(tk.Tk):
         self.txt_log.see(tk.END)
 
     def _show_result(self):
-        if not self.engine: return
+        if not self.engine:
+         return
+
+        # Analizar el sistema con el motor de Gauss-Jordan
         resultado = self.engine.analizar()
+        tipo, info, detalles = resultado
+
+        # ---- Barra de resultado (abajo, una sola línea) ----
+        if tipo == "inconsistente":
+            resumen = "El sistema es inconsistente. No tiene solución."
+        elif tipo == "única":
+            resumen = "Sistema consistente con solución única."
+        else:
+            resumen = "Sistema consistente con infinitas soluciones."
+
+        self.lbl_result.config(text=resumen)
+
+        # ---- Cuadro de salida detallada (como la imagen de la derecha) ----
         msg = self.engine.conjunto_solucion(resultado)
-        self.lbl_result.config(text=msg)
+        if hasattr(self, "txt_solution"):
+            self.txt_solution.delete(1.0, tk.END)
+            self.txt_solution.insert(tk.END, msg)
+
         self._update_status("Cálculo finalizado.")
 
     def _update_status(self, s):
@@ -405,6 +437,200 @@ class App(tk.Tk):
         boxB = ttk.Labelframe(sub, text="Pasos / Operaciones", style="Card.TLabelframe", padding=6)
         self.txt_log = make_text(boxB, height=14, wrap="word"); self.txt_log.pack(fill="both", expand=True)
         sub.add(boxB, weight=1)
+
+        # --- Cuadro de salida del sistema (como la imagen de la derecha) ---
+        solution_card = ttk.Labelframe(
+            right,
+            text="Resultados del sistema",
+            style="Card.TLabelframe",
+            padding=6
+        )
+        self.txt_solution = make_text(solution_card, height=6, wrap="word")
+        self.txt_solution.pack(fill="both", expand=True)
+        solution_card.pack(fill="x", pady=(8, 0))
+        
+            # -------- Tab 2: Gauss (método sencillo, solo hacia adelante) --------
+    def _tab_gauss_simple(self):
+        tab = ttk.Frame(self.nb)
+        self.nb.add(tab, text="Gauss")
+
+        # Controles superiores de tamaño y utilidades
+        top = ttk.Frame(tab); top.pack(fill="x", padx=8, pady=(8,4))
+        ttk.Label(top, text="Ecuaciones (m):").pack(side="left", padx=(2,4))
+        self.spin_m_gauss = tk.Spinbox(top, from_=1, to=12, width=4)
+        self.spin_m_gauss.delete(0,"end"); self.spin_m_gauss.insert(0,"3"); self.spin_m_gauss.pack(side="left")
+        ttk.Label(top, text="Incógnitas (n):").pack(side="left", padx=(10,4))
+        self.spin_n_gauss = tk.Spinbox(top, from_=1, to=12, width=4)
+        self.spin_n_gauss.delete(0,"end"); self.spin_n_gauss.insert(0,"3"); self.spin_n_gauss.pack(side="left", padx=(0,8))
+        ttk.Button(top, text="Redimensionar", command=self.resize_matrix_gauss).pack(side="left", padx=(0,6))
+        ttk.Button(top, text="Ejemplo", command=self.load_example_gauss).pack(side="left", padx=3)
+        ttk.Button(top, text="Limpiar", command=self.clear_inputs_gauss).pack(side="left", padx=3)
+
+        # Controles locales de Gauss
+        ctrls = ttk.Frame(tab); ctrls.pack(fill="x", padx=8, pady=(0,8))
+        ttk.Button(ctrls, text="Resolver (inicializar)", style="Accent.TButton",
+                   command=self.start_engine_gauss).pack(side="left", padx=(0,6))
+        ttk.Button(ctrls, text="Siguiente paso", command=self.next_step_gauss).pack(side="left", padx=3)
+        self.btn_auto_gauss = ttk.Button(ctrls, text="Reproducir", command=self.toggle_auto_gauss)
+        self.btn_auto_gauss.pack(side="left", padx=3)
+        ttk.Button(ctrls, text="Reiniciar", command=self.reset_gauss).pack(side="left", padx=3)
+        ttk.Button(ctrls, text="Exportar pasos", command=self.export_log_gauss).pack(side="left", padx=3)
+
+        # Cuerpo: entrada matriz aumentada + vista y pasos
+        body = ttk.Panedwindow(tab, orient="horizontal")
+        body.pack(fill="both", expand=True, padx=8, pady=8)
+
+        left = ttk.Labelframe(body, text="Matriz aumentada (coeficientes | términos independientes)",
+                              style="Card.TLabelframe", padding=8)
+        self.matrix_input_gauss = MatrixInput(left, rows=3, cols=3, allow_b=True)
+        self.matrix_input_gauss.pack(fill="x")
+        body.add(left, weight=1)
+
+        right = ttk.Frame(body)
+        body.add(right, weight=2)
+
+        sub = ttk.Panedwindow(right, orient="horizontal")
+        sub.pack(fill="both", expand=True)
+        boxA = ttk.Labelframe(sub, text="Matriz y pivotes (Gauss)", style="Card.TLabelframe", padding=6)
+        self.matrix_view_gauss = MatrixView(boxA); self.matrix_view_gauss.pack(fill="both", expand=True)
+        sub.add(boxA, weight=1)
+
+        boxB = ttk.Labelframe(sub, text="Pasos / Operaciones", style="Card.TLabelframe", padding=6)
+        self.txt_log_gauss = make_text(boxB, height=14, wrap="word"); self.txt_log_gauss.pack(fill="both", expand=True)
+        sub.add(boxB, weight=1)
+
+        # --- Cuadro de salida del sistema ---
+        solution_card = ttk.Labelframe(
+            right,
+            text="Resultados del sistema",
+            style="Card.TLabelframe",
+            padding=6
+        )
+        self.txt_solution_gauss = make_text(solution_card, height=6, wrap="word")
+        self.txt_solution_gauss.pack(fill="both", expand=True)
+        solution_card.pack(fill="x", pady=(8, 0))
+
+    # ------ Lógica interna de la pestaña Gauss ------
+
+    def resize_matrix_gauss(self):
+        try:
+            m, n = int(self.spin_m_gauss.get()), int(self.spin_n_gauss.get())
+            if m <= 0 or n <= 0:
+                raise ValueError
+        except:
+            messagebox.showerror("Error", "Dimensiones inválidas"); return
+        self.matrix_input_gauss.set_size(m, n)
+
+    def load_example_gauss(self):
+        ejemplo = [["1","1","1","6"], ["2","-1","1","3"], ["1","2","-1","3"]]
+        self.matrix_input_gauss.set_size(3,3)
+        for i in range(3):
+            for j in range(4):
+                self.matrix_input_gauss.entries[i][j].delete(0, tk.END)
+                self.matrix_input_gauss.entries[i][j].insert(0, ejemplo[i][j])
+
+    def clear_inputs_gauss(self):
+        self.matrix_input_gauss.clear()
+        self.txt_log_gauss.delete(1.0, tk.END)
+        self.lbl_result.config(text="—")
+        self.txt_solution_gauss.delete(1.0, tk.END)
+
+    def start_engine_gauss(self):
+        try:
+            A = self.matrix_input_gauss.get_matrix()
+        except Exception as e:
+            messagebox.showerror("Entrada inválida", str(e)); return
+        self.engine_gauss = GaussEngine(A)
+        self._render_last_step_gauss()
+        self._log_gauss("Inicializado. Use 'Siguiente paso' o 'Reproducir'.")
+        self._update_status("Gauss listo para ejecutar.")
+        self.lbl_result.config(text="—")
+        self.txt_solution_gauss.delete(1.0, tk.END)
+
+    def next_step_gauss(self):
+        if not self.engine_gauss:
+            messagebox.showinfo("Información", "Primero presione 'Resolver (inicializar)'"); return
+        step = self.engine_gauss.siguiente()
+        if step is None:
+            self._log_gauss("No hay más pasos.")
+        self._render_last_step_gauss()
+        if self.engine_gauss.terminado:
+            self._show_result_gauss()
+
+    def toggle_auto_gauss(self):
+        if not self.engine_gauss:
+            messagebox.showinfo("Información", "Primero presione 'Resolver (inicializar)'"); return
+        if not self.auto_running_gauss:
+            self.auto_running_gauss = True
+            if self.btn_auto_gauss: self.btn_auto_gauss.config(text="Pausar")
+            self.auto_thread_gauss = threading.Thread(target=self._auto_run_gauss, daemon=True)
+            self.auto_thread_gauss.start()
+        else:
+            self.auto_running_gauss = False
+            if self.btn_auto_gauss: self.btn_auto_gauss.config(text="Reproducir")
+
+    def _auto_run_gauss(self):
+        while self.auto_running_gauss and self.engine_gauss and not self.engine_gauss.terminado:
+            self.next_step_gauss()
+            time.sleep(1.0)
+        self.auto_running_gauss = False
+        if self.btn_auto_gauss: self.btn_auto_gauss.config(text="Reproducir")
+
+    def reset_gauss(self):
+        self.engine_gauss = None
+        self.txt_log_gauss.delete(1.0, tk.END)
+        self.matrix_view_gauss.set_matrix([[Fraccion(0)]])
+        self.lbl_result.config(text="—")
+        self.txt_solution_gauss.delete(1.0, tk.END)
+        self._update_status("Gauss reiniciado.")
+
+    def export_log_gauss(self):
+        if not self.engine_gauss or not self.engine_gauss.log:
+            messagebox.showinfo("Información", "No hay pasos para exportar"); return
+        fp = filedialog.asksaveasfilename(defaultextension=".txt",
+                                          filetypes=[("Texto","*.txt")],
+                                          title="Guardar registro de pasos (Gauss)")
+        if not fp: return
+        with open(fp, "w", encoding="utf-8") as f:
+            for i, s in enumerate(self.engine_gauss.log, start=1):
+                f.write(f"Paso {i}: {s.descripcion}\n")
+                for fila in s.matriz:
+                    f.write(" [ " + " ".join(str(x) for x in fila[:-1]) + " | " + str(fila[-1]) + " ]\n")
+                f.write("\n")
+        messagebox.showinfo("Listo", f"Registro exportado a: {fp}")
+
+    def _render_last_step_gauss(self):
+        if not self.engine_gauss or not self.engine_gauss.log: return
+        step = self.engine_gauss.log[-1]
+        self.matrix_view_gauss.set_matrix(step.matriz)
+        self.matrix_view_gauss.highlight(step.pivote_row, step.pivote_col)
+        self._log_gauss(step.descripcion)
+
+    def _log_gauss(self, text):
+        self.txt_log_gauss.insert(tk.END, text + "\n")
+        self.txt_log_gauss.see(tk.END)
+
+    def _show_result_gauss(self):
+        if not self.engine_gauss:
+            return
+        resultado = self.engine_gauss.analizar()
+        tipo, info, detalles = resultado
+
+        # Barra inferior: mismo estilo que Gauss-Jordan
+        if tipo == "inconsistente":
+            resumen = "El sistema es inconsistente. No tiene solución."
+        elif tipo == "única":
+            resumen = "Sistema consistente con solución única."
+        else:
+            resumen = "Sistema consistente con infinitas soluciones."
+        self.lbl_result.config(text=resumen)
+
+        # Cuadro de resultados de la pestaña Gauss
+        msg = self.engine_gauss.conjunto_solucion(resultado)
+        self.txt_solution_gauss.delete(1.0, tk.END)
+        self.txt_solution_gauss.insert(tk.END, msg)
+
+        self._update_status("Cálculo finalizado (Gauss).")
 
     # -------- Tab 2: Suma de matrices --------
     def _tab_suma(self):
