@@ -10,7 +10,7 @@ from matrices import (
     determinante_cofactores)
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import re
 
 
@@ -248,6 +248,7 @@ class App(tk.Tk):
         self._tab_sarrus()
         self._tab_metodos_numericos()
         self._tab_falsa_posicion()
+        self._tab_newton_raphson()
 
 
         # Resultado general + estado
@@ -1909,6 +1910,11 @@ class App(tk.Tk):
 
             canvas = FigureCanvasTkAgg(fig, master=container)
             canvas.draw()
+
+            toolbar = NavigationToolbar2Tk(canvas, container)
+            toolbar.update()
+            toolbar.pack(side="bottom", fill="x")
+
             canvas.get_tk_widget().pack(fill="both", expand=True)
 
         except Exception as e:
@@ -1992,19 +1998,16 @@ class App(tk.Tk):
 
         # Frame para gráfica
         graph_frame = ttk.Labelframe(content_frame, text="Gráfica de la Función",
-                                     style="Card.TLabelframe", padding=8)
+                                    style="Card.TLabelframe", padding=8)
 
         # Crear figura de matplotlib
         fig = plt.figure(figsize=(8, 5), dpi=100)
-        canvas = FigureCanvasTkAgg(fig, master=graph_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill="both", expand=True)
+        ax = fig.add_subplot(111)
 
         # Graficar función
         x_plot = np.linspace(a - (b - a) * 0.1, b + (b - a) * 0.1, 400)
         y_plot = [f(xi) for xi in x_plot]
 
-        ax = fig.add_subplot(111)
         ax.plot(x_plot, y_plot, 'b-', linewidth=2, label=f'f(x) = {self._convert_to_display(func_str)}')
         ax.axhline(y=0, color='k', linestyle='--', alpha=0.7)
         ax.axvline(x=a, color='r', linestyle='--', alpha=0.7, label=f'a = {a:.4f}')
@@ -2016,7 +2019,16 @@ class App(tk.Tk):
         ax.set_title('Gráfica de la función y solución encontrada')
         ax.legend()
 
+        # Canvas y toolbar interactiva
+        canvas = FigureCanvasTkAgg(fig, master=graph_frame)
         canvas.draw()
+
+        toolbar = NavigationToolbar2Tk(canvas, graph_frame)
+        toolbar.update()
+        toolbar.pack(side="bottom", fill="x")
+
+        canvas.get_tk_widget().pack(fill="both", expand=True)
+
         content_frame.add(graph_frame, weight=3)
 
         # Frame para resultados
@@ -2109,7 +2121,7 @@ class App(tk.Tk):
         # --- Título y descripción
         title_frame = ttk.Frame(frame)
         title_frame.pack(fill="x", pady=(0, 10))
-        ttk.Label(title_frame, text="Método de la Falsa Posición (Regula Falsi)",
+        ttk.Label(title_frame, text="Método de la Falsa Posición (Regula Falso)",
                 font=("Times New Roman", 14, "bold")).pack(anchor="w")
         ttk.Label(title_frame, text="Resuelve f(x)=0 en [a,b] usando intersecciones lineales sucesivas.",
                 font=("Times New Roman", 10)).pack(anchor="w")
@@ -2234,8 +2246,15 @@ class App(tk.Tk):
 
         left = ttk.Labelframe(top, text="Gráfica", padding=6)
         left.pack(side="left", fill="both", expand=True, padx=(0,8))
+
         canvas = FigureCanvasTkAgg(fig, master=left)
-        canvas.draw(); canvas.get_tk_widget().pack(fill="both", expand=True)
+        canvas.draw()
+
+        toolbar = NavigationToolbar2Tk(canvas, left)
+        toolbar.update()
+        toolbar.pack(side="bottom", fill="x")
+
+        canvas.get_tk_widget().pack(fill="both", expand=True)
 
         # --- Resumen y tabla compacta
         right = ttk.Labelframe(top, text="Resumen", padding=8)
@@ -2303,7 +2322,14 @@ class App(tk.Tk):
         ax.axvline(b, color='g', linestyle='--', alpha=0.7, label=f'b = {b:.4f}')
         ax.set_xlabel('x'); ax.set_ylabel('f(x)')
         ax.set_title('Vista previa de f(x) en el intervalo'); ax.grid(True, alpha=0.3); ax.legend()
-        canvas = FigureCanvasTkAgg(fig, master=container); canvas.draw()
+
+        canvas = FigureCanvasTkAgg(fig, master=container)
+        canvas.draw()
+
+        toolbar = NavigationToolbar2Tk(canvas, container)
+        toolbar.update()
+        toolbar.pack(side="bottom", fill="x")
+
         canvas.get_tk_widget().pack(fill="both", expand=True)
 
     def _limpiar_fp(self):
@@ -2315,5 +2341,218 @@ class App(tk.Tk):
             self.fp_tree.delete(it)
         self.fp_status.config(text="Listo para calcular")
 
+    #----------Newton Raphson----------
+    def _tab_newton_raphson(self):
+        tab = ttk.Frame(self.nb)
+        self.nb.add(tab, text="Newton-Raphson")
+
+        frame = ttk.Frame(tab, padding=10)
+        frame.pack(fill="both", expand=True)
+
+        # --- Título
+        ttk.Label(frame, text="Método de Newton–Raphson",
+                  font=("Times New Roman", 14, "bold")).pack(anchor="w", pady=(0,10))
+
+        # --- Función
+        func_frame = ttk.LabelFrame(frame, text="Función f(x)", padding=8)
+        func_frame.pack(fill="x", pady=5)
+
+        ttk.Label(func_frame, text="f(x) =").pack(side="left")
+        self.fx_entry_nr = ttk.Entry(func_frame, width=48)
+        self.fx_entry_nr.pack(side="left", padx=5, fill="x", expand=True)
+        self.fx_entry_nr.insert(0, "x**3 - x - 2")
+
+        # --- Parámetros
+        params = ttk.LabelFrame(frame, text="Parámetros", padding=8)
+        params.pack(fill="x", pady=8)
+
+        ttk.Label(params, text="x₀ =").grid(row=0, column=0, padx=4, pady=2)
+        self.x0_entry_nr = ttk.Entry(params, width=12)
+        self.x0_entry_nr.grid(row=0, column=1, padx=4)
+        self.x0_entry_nr.insert(0, "1.5")
+
+        ttk.Label(params, text="Tolerancia:").grid(row=0, column=2, padx=4)
+        self.tol_entry_nr = ttk.Entry(params, width=12)
+        self.tol_entry_nr.grid(row=0, column=3, padx=4)
+        self.tol_entry_nr.insert(0, "0.00001")
+
+        # --- Botones
+        btns = ttk.Frame(frame)
+        btns.pack(fill="x", pady=8)
+
+        ttk.Button(btns, text="Graficar función",
+                   command=self._graficar_funcion_nr).pack(side="left", padx=6)
+
+        ttk.Button(btns, text="Calcular Newton-Raphson",
+                   style="Accent.TButton",
+                   command=self._calc_newton_raphson).pack(side="left", padx=6)
+
+        ttk.Button(btns, text="Limpiar",
+                   command=self._limpiar_nr).pack(side="left", padx=6)
+
+        # --- Tabla
+        table_frame = ttk.LabelFrame(frame, text="Iteraciones", padding=8)
+        table_frame.pack(fill="both", expand=True, pady=10)
+
+        columns = ("k", "x", "fx", "dfx", "error")
+        self.nr_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=14)
+
+        for col, text, w in zip(columns,
+                                ["k", "xₖ", "f(xₖ)", "f’(xₖ)", "error"],
+                                [50,120,120,120,100]):
+            self.nr_tree.heading(col, text=text)
+            self.nr_tree.column(col, width=w, anchor="center")
+
+        yscroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.nr_tree.yview)
+        self.nr_tree.configure(yscrollcommand=yscroll.set)
+
+        self.nr_tree.pack(side="left", fill="both", expand=True)
+        yscroll.pack(side="right", fill="y")
+
+        self.nr_status = ttk.Label(frame, text="Listo para calcular")
+        self.nr_status.pack(anchor="w")
+
+    def _calc_newton_raphson(self):
+        for i in self.nr_tree.get_children():
+            self.nr_tree.delete(i)
+
+        try:
+            func_str = self.fx_entry_nr.get().strip()
+            f = self._parse_calculation(func_str)
+
+            x0 = float(self.x0_entry_nr.get())
+            tol = float(self.tol_entry_nr.get())
+
+            from numericos import newton_raphson
+            raiz, pasos, motivo = newton_raphson(f, x0, tol=tol)
+
+            # Mostrar tabla
+            for p in pasos:
+                self.nr_tree.insert("", "end", values=(
+                    p["k"],
+                    f"{p['x']:.8f}",
+                    f"{p['fx']:.8f}",
+                    f"{p['dfx']:.8f}",
+                    f"{p['error']:.8f}" if p["error"] != float('inf') else "—"
+                ))
+
+            self.nr_status.config(text=f"Raíz ≈ {raiz:.8f} ({motivo})")
+
+            self._mostrar_popup_nr(func_str, f, x0, raiz, pasos, motivo)
+
+            if hasattr(self, "lbl_result"):
+                self.lbl_result.config(text=f"Raíz ≈ {raiz:.8f}")
+
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def _mostrar_popup_nr(self, func_str, f, x0, raiz, pasos, motivo):
+        popup = tk.Toplevel(self)
+        popup.title("Resultados - Newton-Raphson")
+        popup.geometry("950x600")
+        popup.transient(self)
+        popup.grab_set()
+        configurar_estilo_oscuro(popup)
+
+        main = ttk.Frame(popup, padding=10)
+        main.pack(fill="both", expand=True)
+
+        ttk.Label(main, text="Newton-Raphson", font=("Times New Roman", 14, "bold")).pack(anchor="w")
+
+        paned = ttk.Panedwindow(main, orient="horizontal")
+        paned.pack(fill="both", expand=True)
+
+        # --- Gráfica
+        fig = plt.figure(figsize=(6,4), dpi=100)
+        ax = fig.add_subplot(111)
+
+        import numpy as np
+        xs = np.linspace(raiz - 5, raiz + 5, 400)
+        ys = [f(x) for x in xs]
+
+        ax.plot(xs, ys, linewidth=2, label="f(x)")
+        ax.axhline(0, color="white")
+        ax.axvline(raiz, color="orange", linestyle="--", label=f"Raíz ~ {raiz:.6f}")
+
+        ax.set_title("Gráfica de f(x)")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+
+        graph = ttk.Labelframe(paned, text="Gráfica", padding=5)
+        canvas = FigureCanvasTkAgg(fig, master=graph)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True)
+        paned.add(graph, weight=3)
+
+        # --- Resultados
+        resumen = ttk.Labelframe(paned, text="Resumen", padding=10)
+        txt = tk.Text(resumen, height=20, wrap="word", background="#1E1E1E",
+                      foreground="white", font=("Cascadia Code", 10))
+        txt.insert(tk.END,
+            f"f(x) = {self._convert_to_display(func_str)}\n"
+            f"x0 = {x0}\n\n"
+            f"Raíz aproximada:\n  {raiz:.10f}\n\n"
+            f"Iteraciones: {len(pasos)}\n"
+            f"Motivo de paro:\n  {motivo}\n"
+        )
+        txt.config(state="disabled")
+        txt.pack(fill="both", expand=True)
+        paned.add(resumen, weight=1)
+
+    def _graficar_funcion_nr(self):
+        try:
+            func_str = self.fx_entry_nr.get().strip()
+            if not func_str:
+                raise ValueError("Ingresa una expresión para f(x).")
+
+            f = self._parse_calculation(func_str)
+
+            # Ventana
+            popup = tk.Toplevel(self)
+            popup.title("Vista previa de f(x)")
+            popup.geometry("900x550")
+            configurar_estilo_oscuro(popup)
+
+            # Figura y eje
+            fig = plt.figure(figsize=(8, 4.8), dpi=100)
+            ax = fig.add_subplot(111)
+
+            # Dominio para graficar
+            xs = np.linspace(-10, 10, 500)
+            ys = [f(x) for x in xs]
+
+            # Gráfica
+            ax.plot(xs, ys, linewidth=2, label=f"f(x) = {self._convert_to_display(func_str)}")
+            ax.axhline(0, color='white', linestyle='--', alpha=0.7)
+            ax.grid(True, alpha=0.3)
+            ax.set_title("f(x)")
+            ax.set_xlabel("x")
+            ax.set_ylabel("f(x)")
+            ax.legend()
+
+            # Canvas + toolbar interactiva
+            canvas = FigureCanvasTkAgg(fig, master=popup)
+            canvas.draw()
+
+            # Barra de herramientas (zoom, pan, reset, guardar)
+            toolbar = NavigationToolbar2Tk(canvas, popup)
+            toolbar.update()
+            toolbar.pack(side="bottom", fill="x")
+
+            # Colocar la gráfica
+            canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def _limpiar_nr(self):
+        self.fx_entry_nr.delete(0, tk.END)
+        self.x0_entry_nr.delete(0, tk.END)
+        self.tol_entry_nr.delete(0, tk.END)
+        for row in self.nr_tree.get_children():
+            self.nr_tree.delete(row)
+        self.nr_status.config(text="Listo para calcular")
+
+#--------------RUN----------#       
 if __name__ == "__main__":
     App().mainloop()

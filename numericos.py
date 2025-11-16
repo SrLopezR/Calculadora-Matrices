@@ -233,3 +233,56 @@ def falsa_posicion(f, a, b, tol=1e-6, max_iter=100, usar_error="absoluto"):
         c_prev = c
 
     return c, pasos, f"Máximo de iteraciones ({max_iter}) alcanzado"
+
+def derivada_numerica(f, x, h=1e-6):
+    """Derivada numérica mediante diferencia central."""
+    return (f(x + h) - f(x - h)) / (2 * h)
+
+
+def newton_raphson(f, x0, tol=1e-6, max_iter=50, usar_error="absoluto"):
+    """
+    Método de Newton-Raphson para encontrar raíces de f(x)=0.
+    Devuelve:
+        raiz: aproximación final
+        pasos: lista de dicts con k, x, fx, dfx, error
+        motivo: razón del paro
+    """
+
+    pasos = []
+    x = x0
+    x_prev = x0
+
+    for k in range(1, max_iter + 1):
+        fx = f(x)
+        dfx = derivada_numerica(f, x)
+
+        if dfx == 0:
+            return x, pasos, f"Derivada cero en x={x}, no se puede continuar."
+
+        # Newton step
+        x_new = x - fx / dfx
+
+        # Error
+        if usar_error == "relativo" and x_new != 0:
+            error = abs((x_new - x_prev) / x_new)
+        else:
+            error = abs(x_new - x_prev)
+
+        pasos.append({
+            "k": k,
+            "x": x,
+            "fx": fx,
+            "dfx": dfx,
+            "error": error,
+        })
+
+        # Criterios de paro
+        if abs(fx) < tol:
+            return x_new, pasos, f"Convergencia: |f(x)| < {tol}"
+        if error < tol:
+            return x_new, pasos, f"Convergencia por error < {tol}"
+
+        x_prev = x
+        x = x_new
+
+    return x, pasos, f"Máximo de iteraciones ({max_iter}) alcanzado"
