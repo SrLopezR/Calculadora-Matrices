@@ -1746,7 +1746,7 @@ class App(tk.Tk):
 
 
         safe_globals = {
-            "__builtins__": None,
+            "__builtins__": {"__import__": __import__},
             "sin": np.sin,
             "cos": np.cos,
             "tan": np.tan,
