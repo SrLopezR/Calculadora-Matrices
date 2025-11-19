@@ -249,6 +249,7 @@ class App(tk.Tk):
         self._tab_metodos_numericos()
         self._tab_falsa_posicion()
         self._tab_newton_raphson()
+        self._tab_secante()
 
 
         # Resultado general + estado
@@ -2552,6 +2553,261 @@ class App(tk.Tk):
         for row in self.nr_tree.get_children():
             self.nr_tree.delete(row)
         self.nr_status.config(text="Listo para calcular")
+
+    #----------Secante---------#
+    def _tab_secante(self):
+        tab = ttk.Frame(self.nb)
+        self.nb.add(tab, text="Secante")
+
+        frame = ttk.Frame(tab, padding=10)
+        frame.pack(fill="both", expand=True)
+
+        # --- Título y descripción
+        title_frame = ttk.Frame(frame)
+        title_frame.pack(fill="x", pady=(0, 10))
+        ttk.Label(title_frame, text="Método de la Secante",
+                  font=("Times New Roman", 14, "bold")).pack(anchor="w")
+        ttk.Label(title_frame, text="Aproxima raíces de f(x) = 0 usando dos puntos iniciales x₀ y x₁.",
+                  font=("Times New Roman", 10)).pack(anchor="w")
+
+        # --- Entrada de datos
+        input_card = ttk.LabelFrame(frame, text="Datos de entrada", padding=8)
+        input_card.pack(fill="x", pady=5)
+
+        # f(x)
+        row0 = ttk.Frame(input_card)
+        row0.pack(fill="x", pady=2)
+        ttk.Label(row0, text="f(x) =").pack(side="left")
+        self.fx_entry_sec = ttk.Entry(row0, width=40)
+        self.fx_entry_sec.pack(side="left", padx=5)
+        self.fx_entry_sec.bind("<KeyRelease>", self._on_function_change_sec)
+
+        self.fx_display_sec = ttk.Label(
+            input_card,
+            text="f(x) = —",
+            font=("Times New Roman", 9, "italic")
+        )
+        self.fx_display_sec.pack(anchor="w", pady=(2, 4))
+
+        # x0, x1 y tolerancia
+        row1 = ttk.Frame(input_card)
+        row1.pack(fill="x", pady=2)
+
+        ttk.Label(row1, text="x₀:").pack(side="left")
+        self.x0_entry_sec = ttk.Entry(row1, width=10, justify="center")
+        self.x0_entry_sec.pack(side="left", padx=4)
+
+        ttk.Label(row1, text="x₁:").pack(side="left")
+        self.x1_entry_sec = ttk.Entry(row1, width=10, justify="center")
+        self.x1_entry_sec.pack(side="left", padx=4)
+
+        ttk.Label(row1, text="Tolerancia:").pack(side="left", padx=(10, 0))
+        self.tol_entry_sec = ttk.Entry(row1, width=10, justify="center")
+        self.tol_entry_sec.insert(0, "1e-6")
+        self.tol_entry_sec.pack(side="left", padx=4)
+
+        # --- Botones
+        btn_row = ttk.Frame(input_card)
+        btn_row.pack(fill="x", pady=(8, 2))
+
+        ttk.Button(btn_row, text="Calcular raíz",
+                   style="Accent.TButton",
+                   command=self._calcular_secante).pack(side="left")
+
+        ttk.Button(btn_row, text="Graficar f(x)",
+                   command=self._graficar_funcion_sec).pack(side="left", padx=5)
+
+        ttk.Button(btn_row, text="Limpiar",
+                   command=self._limpiar_secante).pack(side="left", padx=5)
+
+        # --- Tabla de iteraciones
+        table_frame = ttk.LabelFrame(frame, text="Iteraciones del Método de la Secante", padding=8)
+        table_frame.pack(fill="both", expand=True, pady=10)
+
+        columns = ("k", "x0", "x1", "x2", "fx0", "fx1", "error")
+        self.sec_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=15)
+
+        headings = ["k", "x₀", "x₁", "x₂", "f(x₀)", "f(x₁)", "Error"]
+        widths = [50, 90, 90, 90, 100, 100, 90]
+
+        for col, heading, width in zip(columns, headings, widths):
+            self.sec_tree.heading(col, text=heading)
+            self.sec_tree.column(col, width=width, anchor="center")
+
+        scrollbar_table = ttk.Scrollbar(table_frame, orient="vertical", command=self.sec_tree.yview)
+        self.sec_tree.configure(yscrollcommand=scrollbar_table.set)
+        self.sec_tree.pack(side="left", fill="both", expand=True)
+        scrollbar_table.pack(side="right", fill="y")
+
+        # --- Estado
+        status_frame = ttk.Frame(frame)
+        status_frame.pack(fill="x", pady=5)
+
+        self.secante_status = ttk.Label(
+            status_frame,
+            text="Listo para calcular",
+            font=("Times New Roman", 9)
+        )
+        self.secante_status.pack(anchor="w")
+
+    def _on_function_change_sec(self, event=None):
+        """Actualiza la vista bonita de f(x) para la pestaña de Secante."""
+        try:
+            raw_text = self.fx_entry_sec.get()
+            display_text = self._convert_to_display(raw_text)
+            self.fx_display_sec.config(text=f"f(x) = {display_text}")
+        except Exception:
+            self.fx_display_sec.config(text="f(x) = ?")
+
+    def _calcular_secante(self):
+        """Ejecuta el método de la secante y llena la tabla."""
+        # Limpiar tabla
+        for it in self.sec_tree.get_children():
+            self.sec_tree.delete(it)
+
+        try:
+            func_str = self.fx_entry_sec.get().strip()
+            if not func_str:
+                raise ValueError("Ingresa una expresión para f(x).")
+
+            f = self._parse_calculation(func_str)
+
+            x0 = float(self.x0_entry_sec.get())
+            x1 = float(self.x1_entry_sec.get())
+
+            tol_txt = (self.tol_entry_sec.get() or "").strip()
+            tol = float(tol_txt) if tol_txt not in ("",) else 1e-6
+
+            from numericos import secante
+            raiz, pasos, motivo = secante(f, x0, x1, tol=tol, max_iter=100, usar_error="absoluto")
+
+            # Llenar tabla
+            for p in pasos:
+                self.sec_tree.insert(
+                    "",
+                    "end",
+                    values=(
+                        p["k"],
+                        f"{p['x0']:.6f}",
+                        f"{p['x1']:.6f}",
+                        f"{p['x2']:.6f}",
+                        f"{p['fx0']:.6f}",
+                        f"{p['fx1']:.6f}",
+                        f"{p['error']:.6f}" if p["error"] != float('inf') else "—"
+                    )
+                )
+
+            self.secante_status.config(
+                text=f"Secante completado - {len(pasos)} iteraciones ({motivo})"
+            )
+            if hasattr(self, "lbl_result"):
+                self.lbl_result.config(text=f"Raíz ≈ {raiz:.8f} (Secante: {motivo})")
+
+        except Exception as e:
+            messagebox.showerror("Error en método de la Secante", str(e))
+
+    def _graficar_funcion_sec(self):
+        """Muestra una vista previa de f(x) usando x₀ y x₁ como referencia, y la raíz si ya fue calculada."""
+        try:
+            func_str = self.fx_entry_sec.get().strip()
+            if not func_str:
+                raise ValueError("Ingresa una expresión para f(x).")
+
+            f = self._parse_calculation(func_str)
+
+            # Intentar usar x0 y x1 para el rango
+            try:
+                x0 = float(self.x0_entry_sec.get())
+                x1 = float(self.x1_entry_sec.get())
+                a = min(x0, x1)
+                b = max(x0, x1)
+                if a == b:
+                    a -= 1.0
+                    b += 1.0
+            except Exception:
+                x0 = x1 = None
+                a, b = -5.0, 5.0
+
+            popup = tk.Toplevel(self)
+            popup.title("Vista previa de f(x) - Secante")
+            popup.geometry("900x550")
+            popup.minsize(700, 450)
+            popup.transient(self)
+            popup.grab_set()
+            configurar_estilo_oscuro(popup)
+
+            container = ttk.Frame(popup, padding=10)
+            container.pack(fill="both", expand=True)
+
+            ttk.Label(
+                container,
+                text=f"f(x) = {self._convert_to_display(func_str)}",
+                font=("Times New Roman", 11, "bold")
+            ).pack(anchor="w", pady=(0, 8))
+
+            fig = plt.figure(figsize=(6.5, 4), dpi=100)
+            ax = fig.add_subplot(111)
+
+            margen = 0.1 * (b - a if b != a else 1.0)
+            xs = np.linspace(a - margen, b + margen, 600)
+            ys = []
+            for x in xs:
+                try:
+                    ys.append(f(x))
+                except Exception:
+                    ys.append(np.nan)
+
+            # Gráfica principal
+            ax.plot(xs, ys, linewidth=2, label=f"f(x) = {self._convert_to_display(func_str)}")
+            ax.axhline(0, color="white", linestyle="--", alpha=0.7)
+
+            # Marcar x0 y x1 si existen
+            if x0 is not None:
+                ax.axvline(x0, color="red", linestyle="--", alpha=0.8, label=f"x₀ = {x0:.4f}")
+            if x1 is not None:
+                ax.axvline(x1, color="green", linestyle="--", alpha=0.8, label=f"x₁ = {x1:.4f}")
+
+            # Marcar raíz encontrada por Secante si es de esta misma función
+            if hasattr(self, "sec_last_root") and hasattr(self, "sec_last_func_str"):
+                if self.sec_last_func_str == func_str:
+                    r = self.sec_last_root
+                    try:
+                        fr = f(r)
+                    except Exception:
+                        fr = None
+                    ax.axvline(r, color="orange", linestyle="-", alpha=0.9,
+                               label=f"Raíz secante ≈ {r:.4f}")
+                    if fr is not None:
+                        ax.plot(r, fr, "o", color="orange")
+
+            ax.set_xlabel("x")
+            ax.set_ylabel("f(x)")
+            ax.grid(True, alpha=0.3)
+            ax.legend(loc="best")
+
+            canvas = FigureCanvasTkAgg(fig, master=container)
+            canvas.draw()
+
+            # Toolbar interactiva (zoom, pan, guardar, etc.)
+            toolbar = NavigationToolbar2Tk(canvas, container)
+            toolbar.update()
+            toolbar.pack(side="bottom", fill="x")
+
+            canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        except Exception as e:
+            messagebox.showerror("Error al graficar", str(e))
+            
+    def _limpiar_secante(self):
+        """Limpia entradas y tabla de la pestaña Secante."""
+        self.fx_entry_sec.delete(0, tk.END)
+        self.x0_entry_sec.delete(0, tk.END)
+        self.x1_entry_sec.delete(0, tk.END)
+        self.tol_entry_sec.delete(0, tk.END)
+        self.tol_entry_sec.insert(0, "1e-6")
+        for it in self.sec_tree.get_children():
+            self.sec_tree.delete(it)
+        self.secante_status.config(text="Listo para calcular")
 
 #--------------RUN----------#       
 if __name__ == "__main__":

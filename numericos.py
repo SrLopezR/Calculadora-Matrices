@@ -286,3 +286,59 @@ def newton_raphson(f, x0, tol=1e-6, max_iter=50, usar_error="absoluto"):
         x = x_new
 
     return x, pasos, f"Máximo de iteraciones ({max_iter}) alcanzado"
+
+def secante(f, x0, x1, tol=1e-6, max_iter=100, usar_error="absoluto"):
+    """
+    Método de la Secante para aproximar raíces de f(x) = 0.
+
+    Parámetros:
+        f          : función
+        x0, x1     : aproximaciones iniciales (x0 ≠ x1)
+        tol        : tolerancia
+        max_iter   : máximo de iteraciones
+        usar_error : "absoluto" o "relativo"
+
+    Devuelve:
+        raiz  : aproximación de la raíz
+        pasos : lista de diccionarios con:
+                k, x0, x1, x2, fx0, fx1, error
+        motivo: texto con la razón de parada
+    """
+
+    pasos = []
+
+    for k in range(1, max_iter + 1):
+        fx0 = f(x0)
+        fx1 = f(x1)
+
+        denom = (fx1 - fx0)
+        if denom == 0:
+            return x1, pasos, f"Denominador cero en la iteración {k}. No se puede continuar."
+
+        # Fórmula de la secante
+        x2 = x1 - fx1 * (x1 - x0) / denom
+
+        # Error
+        if usar_error == "relativo" and x2 != 0:
+            error = abs((x2 - x1) / x2)
+        else:
+            error = abs(x2 - x1)
+
+        pasos.append({
+            "k": k,
+            "x0": x0,
+            "x1": x1,
+            "x2": x2,
+            "fx0": fx0,
+            "fx1": fx1,
+            "error": error
+        })
+
+        # Criterios de paro
+        if abs(fx1) <= tol or error <= tol:
+            return x2, pasos, f"Convergencia: |f(x)| ≤ tol o error ≤ tol en k={k}"
+
+        # Avanzar
+        x0, x1 = x1, x2
+
+    return x1, pasos, f"Máximo de iteraciones ({max_iter}) alcanzado"
