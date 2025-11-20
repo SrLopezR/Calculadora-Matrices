@@ -2681,6 +2681,10 @@ class App(tk.Tk):
             from numericos import secante
             raiz, pasos, motivo = secante(f, x0, x1, tol=tol, max_iter=100, usar_error="absoluto")
 
+            # Guardar para usar en gráficas posteriores
+            self.sec_last_root = raiz
+            self.sec_last_func_str = func_str
+
             # Llenar tabla
             for p in pasos:
                 self.sec_tree.insert(
@@ -2697,6 +2701,9 @@ class App(tk.Tk):
                     )
                 )
 
+            # Mostrar ventana emergente con resultados
+            self._mostrar_resultados_popup_secante(func_str, f, x0, x1, raiz, pasos, motivo)
+
             self.secante_status.config(
                 text=f"Secante completado - {len(pasos)} iteraciones ({motivo})"
             )
@@ -2705,6 +2712,131 @@ class App(tk.Tk):
 
         except Exception as e:
             messagebox.showerror("Error en método de la Secante", str(e))
+
+    def _mostrar_resultados_popup_secante(self, func_str, f, x0, x1, raiz, pasos, motivo):
+        """Muestra ventana emergente con gráfica y resultados detallados del método de la Secante."""
+        popup = tk.Toplevel(self)
+        popup.title("Resultados - Método de la Secante")
+        popup.geometry("1020x600")
+        popup.minsize(800, 600)
+        popup.transient(self)
+        popup.grab_set()
+        configurar_estilo_oscuro(popup)
+
+        # Frame principal
+        main_frame = ttk.Frame(popup, padding=10)
+        main_frame.pack(fill="both", expand=True)
+
+        # Título
+        title_label = ttk.Label(main_frame, text="Resultados del Método de la Secante",
+                                font=("Times New Roman", 14, "bold"))
+        title_label.pack(pady=(0, 10))
+
+        # Frame para gráfica y resultados
+        content_frame = ttk.PanedWindow(main_frame, orient="horizontal")
+        content_frame.pack(fill="both", expand=True, pady=10)
+
+        # Frame para gráfica
+        graph_frame = ttk.Labelframe(content_frame, text="Gráfica de la Función",
+                                     style="Card.TLabelframe", padding=8)
+
+        # Crear figura de matplotlib
+        fig = plt.figure(figsize=(8, 5), dpi=100)
+        ax = fig.add_subplot(111)
+
+        # Determinar rango para graficar
+        all_x_values = [x0, x1, raiz]
+        for paso in pasos:
+            all_x_values.extend([paso.get('x0', 0), paso.get('x1', 0), paso.get('x2', 0)])
+
+        min_x = min(all_x_values)
+        max_x = max(all_x_values)
+        margen = 0.2 * (max_x - min_x) if max_x != min_x else 1.0
+
+        x_plot = np.linspace(min_x - margen, max_x + margen, 400)
+        y_plot = [f(xi) for xi in x_plot]
+
+        # Graficar función
+        ax.plot(x_plot, y_plot, 'b-', linewidth=2, label=f'f(x) = {self._convert_to_display(func_str)}')
+        ax.axhline(y=0, color='k', linestyle='-', alpha=0.7)
+
+        # Marcar puntos importantes
+        ax.axvline(x=x0, color='r', linestyle='--', alpha=0.7, label=f'x₀ = {x0:.4f}')
+        ax.axvline(x=x1, color='g', linestyle='--', alpha=0.7, label=f'x₁ = {x1:.4f}')
+        ax.axvline(raiz, color="orange", linestyle="--", alpha=0.9,label=f"Raíz secante ≈ {raiz:.4f}")
+        ax.plot(raiz, f(raiz), "o", color="orange")
+
+        ax.grid(True, alpha=0.3)
+        ax.set_xlabel('x')
+        ax.set_ylabel('f(x)')
+        ax.set_title('Gráfica de la función y solución encontrada')
+        ax.legend()
+
+        # Canvas y toolbar interactiva
+        canvas = FigureCanvasTkAgg(fig, master=graph_frame)
+        canvas.draw()
+
+        toolbar = NavigationToolbar2Tk(canvas, graph_frame)
+        toolbar.update()
+        toolbar.pack(side="bottom", fill="x")
+
+        canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        content_frame.add(graph_frame, weight=3)
+
+        # Frame para resultados
+        results_frame = ttk.Labelframe(content_frame, text="Resultados del Cálculo",
+                                       style="Card.TLabelframe", padding=8)
+
+        # Crear área de texto para resultados
+        results_text = tk.Text(results_frame, height=20, wrap="word", width=35)
+        results_text.pack(fill="both", expand=True)
+
+        # Configurar estilo del texto
+        results_text.configure(
+            background="#1E1E1E",
+            foreground="#FFFFFF",
+            font=("Cascadia Code", 10),
+            padx=12,
+            pady=12,
+            spacing1=2,
+            spacing2=1,
+            spacing3=2
+        )
+
+        # Escribir resultados
+        results_text.insert(tk.END, "RESULTADOS DEL MÉTODO DE LA SECANTE\n")
+        results_text.insert(tk.END, "=" * 40 + "\n\n")
+
+        results_text.insert(tk.END, "FUNCIÓN ANALIZADA:\n")
+        results_text.insert(tk.END, f"f(x) = {self._convert_to_display(func_str)}\n\n")
+
+        results_text.insert(tk.END, "PUNTOS INICIALES:\n")
+        results_text.insert(tk.END, f"x₀ = {x0:.8f}\n")
+        results_text.insert(tk.END, f"x₁ = {x1:.8f}\n\n")
+
+        results_text.insert(tk.END, "RESULTADO FINAL:\n")
+        results_text.insert(tk.END, "─" * 20 + "\n")
+        results_text.insert(tk.END, f"Raíz aproximada: {raiz:.10f}\n")
+        results_text.insert(tk.END, f"f(raíz) ≈ {f(raiz):.2e}\n")
+        results_text.insert(tk.END, f"Iteraciones: {len(pasos)}\n")
+
+        # Calcular error final
+        if len(pasos) > 0:
+            error_final = pasos[-1].get("error", 0)
+            if error_final == error_final and error_final != float('inf'):  # No es NaN ni infinito
+                results_text.insert(tk.END, f"Error final: {error_final:.10f}\n")
+            else:
+                results_text.insert(tk.END, f"Error final: —\n")
+        else:
+            results_text.insert(tk.END, f"Error final: —\n")
+
+        results_text.insert(tk.END, "\nCONFIGURACIÓN:\n")
+        results_text.insert(tk.END, f"Tolerancia: {float(self.tol_entry_sec.get()):.8f}\n")
+        results_text.insert(tk.END, f"Criterio de parada: {motivo}\n")
+
+        results_text.config(state="disabled")
+        content_frame.add(results_frame, weight=1)
 
     def _graficar_funcion_sec(self):
         """Muestra una vista previa de f(x) usando x₀ y x₁ como referencia, y la raíz si ya fue calculada."""
@@ -2759,7 +2891,7 @@ class App(tk.Tk):
 
             # Gráfica principal
             ax.plot(xs, ys, linewidth=2, label=f"f(x) = {self._convert_to_display(func_str)}")
-            ax.axhline(0, color="white", linestyle="--", alpha=0.7)
+            ax.axhline(0, color="black", linestyle="-", alpha=0.7)
 
             # Marcar x0 y x1 si existen
             if x0 is not None:
@@ -2767,18 +2899,6 @@ class App(tk.Tk):
             if x1 is not None:
                 ax.axvline(x1, color="green", linestyle="--", alpha=0.8, label=f"x₁ = {x1:.4f}")
 
-            # Marcar raíz encontrada por Secante si es de esta misma función
-            if hasattr(self, "sec_last_root") and hasattr(self, "sec_last_func_str"):
-                if self.sec_last_func_str == func_str:
-                    r = self.sec_last_root
-                    try:
-                        fr = f(r)
-                    except Exception:
-                        fr = None
-                    ax.axvline(r, color="orange", linestyle="-", alpha=0.9,
-                               label=f"Raíz secante ≈ {r:.4f}")
-                    if fr is not None:
-                        ax.plot(r, fr, "o", color="orange")
 
             ax.set_xlabel("x")
             ax.set_ylabel("f(x)")
