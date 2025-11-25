@@ -34,7 +34,9 @@ def sumar_matrices(A, B):
             valor = A[i][j] + B[i][j]
             fila_resultado.append(valor)
             pasos.append(
-                f"C[{i + 1},{j + 1}] = A[{i + 1},{j + 1}] + B[{i + 1},{j + 1}] = {A[i][j]} + {B[i][j]} = {valor}")
+                f"C[{i + 1},{j + 1}] = A[{i + 1},{j + 1}] + B[{i + 1},{j + 1}] = "
+                f"{A[i][j]} + {B[i][j]} = {valor}"
+            )
         resultado.append(fila_resultado)
         pasos.append("")
 
@@ -64,7 +66,10 @@ def multiplicar_matrices(A, B):
             for k in range(len(B)):
                 producto = A[i][k] * B[k][j]
                 suma_parcial = suma_parcial + producto
-                pasos.append(f"  + A[{i + 1},{k + 1}]×B[{k + 1},{j + 1}] = {A[i][k]} × {B[k][j]} = {producto}")
+                pasos.append(
+                    f"  + A[{i + 1},{k + 1}]×B[{k + 1},{j + 1}] = "
+                    f"{A[i][k]} × {B[k][j]} = {producto}"
+                )
             resultado[i][j] = suma_parcial
             pasos.append(f"  C[{i + 1},{j + 1}] = {suma_parcial}")
             pasos.append("")
@@ -79,7 +84,7 @@ def multiplicar_escalar_matriz(escalar_str, A):
     """Multiplica escalar por matriz con pasos detallados"""
     try:
         escalar = Fraccion(escalar_str)
-    except:
+    except Exception:
         raise ValueError(f"Escalar inválido: {escalar_str}")
 
     pasos = []
@@ -103,6 +108,169 @@ def multiplicar_escalar_matriz(escalar_str, A):
 
     return resultado, pasos
 
+
+def combinar_escalar_matrices(escalarA_str, A, escalarB_str, B, operador="+"):
+    """
+    Calcula una combinación lineal de matrices del tipo:
+        C = escalarA * A  +/-  escalarB * B
+
+    operador: "+" para escalarA*A + escalarB*B
+              "-" para escalarA*A - escalarB*B
+    Devuelve (matriz_resultado, pasos)
+    """
+    # Validar dimensiones
+    if len(A) != len(B) or len(A[0]) != len(B[0]):
+        raise ValueError("Las matrices A y B deben tener las mismas dimensiones")
+
+    # Parsear escalares
+    try:
+        escalarA = Fraccion(escalarA_str)
+    except Exception:
+        raise ValueError(f"Escalar inválido para A: {escalarA_str}")
+
+    try:
+        escalarB = Fraccion(escalarB_str)
+    except Exception:
+        raise ValueError(f"Escalar inválido para B: {escalarB_str}")
+
+    if operador not in ("+", "-"):
+        raise ValueError("Operador inválido, use '+' o '-'")
+
+    pasos = []
+    resultado = []
+
+    simbolo = "+" if operador == "+" else "-"
+    pasos.append(f"Combinación lineal de matrices: {escalarA}·A {simbolo} {escalarB}·B")
+    pasos.append(f"A = \n{formatear_matriz(A)}")
+    pasos.append(f"B = \n{formatear_matriz(B)}")
+    pasos.append("")
+
+    for i in range(len(A)):
+        fila_resultado = []
+        for j in range(len(A[0])):
+            prodA = escalarA * A[i][j]
+            prodB = escalarB * B[i][j]
+
+            if operador == "+":
+                valor = prodA + prodB
+                pasos.append(
+                    f"C[{i+1},{j+1}] = {escalarA}·A[{i+1},{j+1}] + {escalarB}·B[{i+1},{j+1}] = "
+                    f"{escalarA}·{A[i][j]} + {escalarB}·{B[i][j]} = {prodA} + {prodB} = {valor}"
+                )
+            else:
+                valor = prodA - prodB
+                pasos.append(
+                    f"C[{i+1},{j+1}] = {escalarA}·A[{i+1},{j+1}] - {escalarB}·B[{i+1},{j+1}] = "
+                    f"{escalarA}·{A[i][j]} - {escalarB}·{B[i][j]} = {prodA} - {prodB} = {valor}"
+                )
+
+            fila_resultado.append(valor)
+        resultado.append(fila_resultado)
+        pasos.append("")
+
+    pasos.append("Resultado:")
+    pasos.append(formatear_matriz(resultado))
+
+    return resultado, pasos
+
+
+# ====== Funciones extra para vectores y combinaciones lineales ======
+
+def sumar_vectores(u, v):
+    """Suma dos 'vectores' (matrices del mismo tamaño) con pasos detallados."""
+    if len(u) != len(v) or len(u[0]) != len(v[0]):
+        raise ValueError("Los vectores deben tener las mismas dimensiones")
+
+    pasos = []
+    resultado = []
+
+    pasos.append("Suma de vectores (tratados como matrices):")
+    pasos.append(f"u = \n{formatear_matriz(u)}")
+    pasos.append(f"v = \n{formatear_matriz(v)}")
+    pasos.append("")
+
+    for i in range(len(u)):
+        fila_resultado = []
+        for j in range(len(u[0])):
+            valor = u[i][j] + v[i][j]
+            fila_resultado.append(valor)
+            pasos.append(
+                f"w[{i + 1},{j + 1}] = u[{i + 1},{j + 1}] + v[{i + 1},{j + 1}] = "
+                f"{u[i][j]} + {v[i][j]} = {valor}"
+            )
+        resultado.append(fila_resultado)
+        pasos.append("")
+
+    pasos.append("Resultado de u + v:")
+    pasos.append(formatear_matriz(resultado))
+
+    return resultado, pasos
+
+
+def multiplicar_matriz_vector(A, x):
+    """Multiplica matriz A por 'vector' columna x con pasos detallados."""
+    if len(A[0]) != len(x):
+        raise ValueError("Columnas de A deben igualar filas del vector")
+
+    pasos = []
+    pasos.append("Multiplicación A·x:")
+    pasos.append(f"A = \n{formatear_matriz(A)}")
+    pasos.append(f"x = \n{formatear_matriz(x)}")
+    pasos.append("")
+
+    resultado = []
+    for i in range(len(A)):
+        suma = Fraccion(0)
+        pasos.append(f"Fila {i+1}:")
+        for j in range(len(A[0])):
+            prod = A[i][j] * x[j][0]
+            suma = suma + prod
+            pasos.append(f"  {A[i][j]} × {x[j][0]} = {prod}")
+        pasos.append(f"  → y[{i+1}] = {suma}")
+        resultado.append([suma])
+        pasos.append("")
+
+    pasos.append("Resultado A·x:")
+    pasos.append(formatear_matriz(resultado))
+
+    return resultado, pasos
+
+
+def Au_mas_Av(A, u, v):
+    """Calcula Au + Av con pasos detallados."""
+    Au, pasos1 = multiplicar_matriz_vector(A, u)
+    Av, pasos2 = multiplicar_matriz_vector(A, v)
+    suma, pasos3 = sumar_vectores(Au, Av)
+
+    pasos = ["Operación: Au + Av", ""]
+    pasos.append("Cálculo de Au:")
+    pasos.extend(pasos1)
+    pasos.append("")
+    pasos.append("Cálculo de Av:")
+    pasos.extend(pasos2)
+    pasos.append("")
+    pasos.append("Suma Au + Av:")
+    pasos.extend(pasos3)
+
+    return suma, pasos
+
+
+def A_por_u_mas_v(A, u, v):
+    """Calcula A(u+v) con pasos detallados."""
+    suma_uv, pasos1 = sumar_vectores(u, v)
+    R, pasos2 = multiplicar_matriz_vector(A, suma_uv)
+
+    pasos = ["Operación: A(u + v)", ""]
+    pasos.append("Paso 1: Calcular u + v")
+    pasos.extend(pasos1)
+    pasos.append("")
+    pasos.append("Paso 2: Multiplicar A por (u+v)")
+    pasos.extend(pasos2)
+
+    return R, pasos
+
+
+# ====== Resto de funciones tal como estaban ======
 
 def Transpuesta(A):
     """Calcula la transpuesta de una matriz"""
@@ -159,7 +327,7 @@ def determinante_matriz(A):
                 pasos.append(f"Eliminar elemento ({j + 1},{i + 1}) usando factor {factor}")
 
                 for k in range(i, n):
-                    M[j][k] = M[j][k] - factor * M[i][k]
+                    M[j][k] = M[j][k] - factor * M[i][i]
 
         det = det * M[i][i]
         pasos.append(f"Multiplicar det por pivote M[{i + 1},{i + 1}] = {M[i][i]}")
@@ -317,7 +485,7 @@ def comprobar_invertibilidad(A):
     for i in range(n):
         det = det * M[i][i]
 
-    pasos.append(f"Matriz triangular superior obtenida")
+    pasos.append("Matriz triangular superior obtenida")
     pasos.append(f"Producto de pivotes ≈ {det}")
     pasos.append("Matriz ES invertible (rank = n)")
 

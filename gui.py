@@ -6,7 +6,8 @@ from fraccion import Fraccion
 from gauss import GaussJordanEngine,GaussEngine
 from matrices import (
     sumar_matrices, multiplicar_matrices,
-    multiplicar_escalar_matriz, formatear_matriz, Transpuesta, determinante_matriz,
+    multiplicar_escalar_matriz, combinar_escalar_matrices,
+    formatear_matriz, Transpuesta, determinante_matriz,
     determinante_cofactores)
 import matplotlib.pyplot as plt
 import numpy as np
@@ -742,52 +743,419 @@ class App(tk.Tk):
         self.mult_log.delete(1.0, tk.END)
         for p in pasos: self.mult_log.insert(tk.END, p + "\n")
 
-    # -------- Tab 4: Escalar × Matriz (paso a paso) --------
+    # -------- Tab 4: Escalar × Matriz / Combinaciones --------
     def _tab_escalar(self):
         tab = ttk.Frame(self.nb)
         self.nb.add(tab, text="Escalar × Matriz")
 
-        frame = ttk.Frame(tab, padding=10); frame.pack(fill="both", expand=True)
+        frame = ttk.Frame(tab, padding=10)
+        frame.pack(fill="both", expand=True)
 
-        top = ttk.Frame(frame); top.pack(fill="x")
-        ttk.Label(top, text="Filas:").pack(side="left")
-        self.es_r = tk.Spinbox(top, from_=1,to=12,width=5); self.es_r.pack(side="left", padx=4)
-        ttk.Label(top, text="Columnas:").pack(side="left")
-        self.es_c = tk.Spinbox(top, from_=1,to=12,width=5); self.es_c.pack(side="left", padx=4)
-        ttk.Label(top, text="Escalar:").pack(side="left")
-        self.es_val = ttk.Entry(top, width=10); self.es_val.pack(side="left", padx=6)
-        ttk.Button(top, text="Redimensionar",
-                   command=lambda: self.es_A.set_size(int(self.es_r.get()), int(self.es_c.get()))
-                   ).pack(side="left", padx=10)
+        # --- Tipo de operación ---
+        tipo_frame = ttk.Frame(frame)
+        tipo_frame.pack(fill="x", pady=(0, 6))
+        ttk.Label(tipo_frame, text="Tipo de operación:").pack(side="left")
 
-        self.es_A = MatrixInput(frame, rows=2, cols=2, allow_b=False); self.es_A.pack(fill="x", pady=8)
+        self.es_tipo = tk.StringVar(value="Escalar × A")
+        self.es_tipo_cb = ttk.Combobox(
+            tipo_frame,
+            textvariable=self.es_tipo,
+            values=[
+                "Escalar × A",
+                "(Escalar × A) × B",
+                "αA ± βB",
+                "A(u+v)",
+                "Au + Av"
+            ],
+            state="readonly",
+            width=22
+        )
+        self.es_tipo_cb.pack(side="left", padx=6)
+        self.es_tipo_cb.current(0)
 
-        btns = ttk.Frame(frame); btns.pack(fill="x")
-        ttk.Button(btns, text="Calcular", style="Accent.TButton", command=self._escalar_calc).pack(side="left")
-        self.es_next = ttk.Button(btns, text="Siguiente paso", command=self._escalar_next, state="disabled")
+        # --- Tamaño matriz A ---
+        sizeA_frame = ttk.Frame(frame)
+        sizeA_frame.pack(fill="x")
+        ttk.Label(sizeA_frame, text="Matriz A - Filas:").pack(side="left")
+        self.es_rA = tk.Spinbox(sizeA_frame, from_=1, to=12, width=5)
+        self.es_rA.pack(side="left", padx=4)
+        ttk.Label(sizeA_frame, text="Columnas:").pack(side="left")
+        self.es_cA = tk.Spinbox(sizeA_frame, from_=1, to=12, width=5)
+        self.es_cA.pack(side="left", padx=4)
+        self.es_btnA = ttk.Button(
+            sizeA_frame, text="Redimensionar A",
+            command=self._escalar_resize_A
+        )
+        self.es_btnA.pack(side="left", padx=10)
+
+        # --- Tamaño matriz B ---
+        sizeB_frame = ttk.Frame(frame)
+        sizeB_frame.pack(fill="x", pady=(4, 0))
+        ttk.Label(sizeB_frame, text="Matriz B / u - Filas:").pack(side="left")
+        self.es_rB = tk.Spinbox(sizeB_frame, from_=1, to=12, width=5)
+        self.es_rB.pack(side="left", padx=4)
+        ttk.Label(sizeB_frame, text="Columnas:").pack(side="left")
+        self.es_cB = tk.Spinbox(sizeB_frame, from_=1, to=12, width=5)
+        self.es_cB.pack(side="left", padx=4)
+        self.es_btnB = ttk.Button(
+            sizeB_frame, text="Redimensionar B",
+            command=self._escalar_resize_B
+        )
+        self.es_btnB.pack(side="left", padx=10)
+
+        # --- Tamaño matriz C ---
+        sizeC_frame = ttk.Frame(frame)
+        sizeC_frame.pack(fill="x", pady=(4, 4))
+        ttk.Label(sizeC_frame, text="Matriz C / v - Filas:").pack(side="left")
+        self.es_rC = tk.Spinbox(sizeC_frame, from_=1, to=12, width=5)
+        self.es_rC.pack(side="left", padx=4)
+        ttk.Label(sizeC_frame, text="Columnas:").pack(side="left")
+        self.es_cC = tk.Spinbox(sizeC_frame, from_=1, to=12, width=5)
+        self.es_cC.pack(side="left", padx=4)
+        self.es_btnC = ttk.Button(
+            sizeC_frame, text="Redimensionar C",
+            command=self._escalar_resize_C
+        )
+        self.es_btnC.pack(side="left", padx=10)
+
+        # --- Escalares y operador ---
+        scal_frame = ttk.Frame(frame)
+        scal_frame.pack(fill="x", pady=(4, 4))
+
+        ttk.Label(scal_frame, text="Escalar A (α / λ):").pack(side="left")
+        self.es_valA = ttk.Entry(scal_frame, width=8)
+        self.es_valA.pack(side="left", padx=4)
+
+        ttk.Label(scal_frame, text="Operador (para αA ± βB):").pack(side="left", padx=(10, 0))
+        self.es_op = ttk.Combobox(
+            scal_frame, values=["+", "-"],
+            width=3, state="readonly"
+        )
+        self.es_op.set("-")
+        self.es_op.pack(side="left", padx=4)
+
+        ttk.Label(scal_frame, text="Escalar B (β):").pack(side="left", padx=(10, 0))
+        self.es_valB = ttk.Entry(scal_frame, width=8)
+        self.es_valB.pack(side="left", padx=4)
+
+        # --- Matrices A, B, C ---
+        matrices_frame = ttk.Frame(frame)
+        matrices_frame.pack(fill="x", pady=8)
+
+        # Matriz A
+        ttk.Label(matrices_frame, text="Matriz A").pack(anchor="w")
+        self.es_A = MatrixInput(matrices_frame, rows=2, cols=2, allow_b=False)
+        self.es_A.pack(fill="x", pady=(0, 8))
+
+        # Matriz B / u
+        ttk.Label(
+            matrices_frame,
+            text="Matriz B (se usa como B, o como vector u en A(u+v), Au+Av)"
+        ).pack(anchor="w")
+        self.es_B = MatrixInput(matrices_frame, rows=2, cols=1, allow_b=False)
+        self.es_B.pack(fill="x", pady=(0, 8))
+
+        # Matriz C / v
+        ttk.Label(
+            matrices_frame,
+            text="Matriz C (solo para vectores v en A(u+v) y Au+Av)"
+        ).pack(anchor="w")
+        self.es_C = MatrixInput(matrices_frame, rows=2, cols=1, allow_b=False)
+        self.es_C.pack(fill="x")
+
+        # --- Botones ---
+        btns = ttk.Frame(frame)
+        btns.pack(fill="x", pady=4)
+        ttk.Button(
+            btns, text="Calcular",
+            style="Accent.TButton",
+            command=self._escalar_calc
+        ).pack(side="left")
+        self.es_next = ttk.Button(
+            btns, text="Siguiente paso",
+            command=self._escalar_next,
+            state="disabled"
+        )
         self.es_next.pack(side="left", padx=6)
-        ttk.Button(btns, text="Exportar log", command=self._escalar_export).pack(side="left")
+        ttk.Button(
+            btns, text="Exportar log",
+            command=self._escalar_export
+        ).pack(side="left")
 
-        self.es_txt = make_text(frame, height=18, wrap="word"); self.es_txt.pack(fill="both", expand=True)
-        self._es_pasos = []; self._es_idx = 0; self._es_resultado = []
+        # --- Área de texto para pasos ---
+        self.es_txt = make_text(frame, height=18, wrap="word")
+        self.es_txt.pack(fill="both", expand=True)
 
+        self._es_pasos = []
+        self._es_idx = 0
+        self._es_resultado = []
+
+        # Vincular cambio de modo
+        self.es_tipo_cb.bind("<<ComboboxSelected>>", self._escalar_on_mode_change)
+        # Estado inicial
+        self._escalar_on_mode_change()
+
+    # -------- Helpers para activar/desactivar entradas --------
+    def _set_enabled_recursive(self, widget, enabled: bool):
+        state = "normal" if enabled else "disabled"
+        try:
+            # No desactivar el combobox de tipo de operación
+            if widget is self.es_tipo_cb:
+                return
+            widget.configure(state=state)
+        except tk.TclError:
+            pass
+        for child in widget.winfo_children():
+            self._set_enabled_recursive(child, enabled)
+
+    def _escalar_on_mode_change(self, event=None):
+        modo = self.es_tipo.get()
+
+        # Por defecto deshabilitamos todo y luego activamos lo que toca
+        # A
+        self._set_enabled_recursive(self.es_A, False)
+        self._set_enabled_recursive(self.es_rA, False)
+        self._set_enabled_recursive(self.es_cA, False)
+        self._set_enabled_recursive(self.es_btnA, False)
+
+        # B
+        self._set_enabled_recursive(self.es_B, False)
+        self._set_enabled_recursive(self.es_rB, False)
+        self._set_enabled_recursive(self.es_cB, False)
+        self._set_enabled_recursive(self.es_btnB, False)
+
+        # C
+        self._set_enabled_recursive(self.es_C, False)
+        self._set_enabled_recursive(self.es_rC, False)
+        self._set_enabled_recursive(self.es_cC, False)
+        self._set_enabled_recursive(self.es_btnC, False)
+
+        # Escalares y operador
+        self._set_enabled_recursive(self.es_valA, False)
+        self._set_enabled_recursive(self.es_valB, False)
+        self._set_enabled_recursive(self.es_op, False)
+
+        # Ahora activamos según el modo
+        if modo == "Escalar × A":
+            # Usa A y escalar A
+            self._set_enabled_recursive(self.es_A, True)
+            self._set_enabled_recursive(self.es_rA, True)
+            self._set_enabled_recursive(self.es_cA, True)
+            self._set_enabled_recursive(self.es_btnA, True)
+            self._set_enabled_recursive(self.es_valA, True)
+
+        elif modo == "(Escalar × A) × B":
+            # Usa A, escalar A y B
+            self._set_enabled_recursive(self.es_A, True)
+            self._set_enabled_recursive(self.es_rA, True)
+            self._set_enabled_recursive(self.es_cA, True)
+            self._set_enabled_recursive(self.es_btnA, True)
+            self._set_enabled_recursive(self.es_valA, True)
+
+            self._set_enabled_recursive(self.es_B, True)
+            self._set_enabled_recursive(self.es_rB, True)
+            self._set_enabled_recursive(self.es_cB, True)
+            self._set_enabled_recursive(self.es_btnB, True)
+
+        elif modo == "αA ± βB":
+            # Usa A, B, escalar A, escalar B y operador
+            self._set_enabled_recursive(self.es_A, True)
+            self._set_enabled_recursive(self.es_rA, True)
+            self._set_enabled_recursive(self.es_cA, True)
+            self._set_enabled_recursive(self.es_btnA, True)
+
+            self._set_enabled_recursive(self.es_B, True)
+            self._set_enabled_recursive(self.es_rB, True)
+            self._set_enabled_recursive(self.es_cB, True)
+            self._set_enabled_recursive(self.es_btnB, True)
+
+            self._set_enabled_recursive(self.es_valA, True)
+            self._set_enabled_recursive(self.es_valB, True)
+            self._set_enabled_recursive(self.es_op, True)
+
+        elif modo == "A(u+v)":
+            # Usa A, B (u) y C (v) como vectores; no escalares
+            self._set_enabled_recursive(self.es_A, True)
+            self._set_enabled_recursive(self.es_rA, True)
+            self._set_enabled_recursive(self.es_cA, True)
+            self._set_enabled_recursive(self.es_btnA, True)
+
+            self._set_enabled_recursive(self.es_B, True)
+            self._set_enabled_recursive(self.es_rB, True)
+            self._set_enabled_recursive(self.es_cB, True)
+            self._set_enabled_recursive(self.es_btnB, True)
+
+            self._set_enabled_recursive(self.es_C, True)
+            self._set_enabled_recursive(self.es_rC, True)
+            self._set_enabled_recursive(self.es_cC, True)
+            self._set_enabled_recursive(self.es_btnC, True)
+
+        else:  # "Au + Av"
+            # Usa A, B (u) y C (v); no escalares
+            self._set_enabled_recursive(self.es_A, True)
+            self._set_enabled_recursive(self.es_rA, True)
+            self._set_enabled_recursive(self.es_cA, True)
+            self._set_enabled_recursive(self.es_btnA, True)
+
+            self._set_enabled_recursive(self.es_B, True)
+            self._set_enabled_recursive(self.es_rB, True)
+            self._set_enabled_recursive(self.es_cB, True)
+            self._set_enabled_recursive(self.es_btnB, True)
+
+            self._set_enabled_recursive(self.es_C, True)
+            self._set_enabled_recursive(self.es_rC, True)
+            self._set_enabled_recursive(self.es_cC, True)
+            self._set_enabled_recursive(self.es_btnC, True)
+
+    # -------- Redimensionar matrices --------
+    def _escalar_resize_A(self):
+        try:
+            r = int(self.es_rA.get())
+            c = int(self.es_cA.get())
+        except ValueError:
+            messagebox.showerror("Error", "Filas y columnas de A deben ser enteros.")
+            return
+        self.es_A.set_size(r, c)
+
+    def _escalar_resize_B(self):
+        try:
+            r = int(self.es_rB.get())
+            c = int(self.es_cB.get())
+        except ValueError:
+            messagebox.showerror("Error", "Filas y columnas de B deben ser enteros.")
+            return
+        self.es_B.set_size(r, c)
+
+    def _escalar_resize_C(self):
+        try:
+            r = int(self.es_rC.get())
+            c = int(self.es_cC.get())
+        except ValueError:
+            messagebox.showerror("Error", "Filas y columnas de C deben ser enteros.")
+            return
+        self.es_C.set_size(r, c)
+
+    # -------- Cálculo principal (igual que antes) --------
     def _escalar_calc(self):
         try:
+            modo_str = self.es_tipo.get()
+
+            # Siempre leemos A
             A = self.es_A.get_matrix()
-            esc = self.es_val.get()
-            R, pasos = multiplicar_escalar_matriz(esc, A)  # misma lógica
+            escA = (self.es_valA.get() or "").strip()
+            if not escA:
+                escA = "1"  # por defecto 1
+
+            if modo_str == "Escalar × A":
+                R, pasos = multiplicar_escalar_matriz(escA, A)
+
+            elif modo_str == "(Escalar × A) × B":
+                B = self.es_B.get_matrix()
+                if len(A[0]) != len(B):
+                    raise ValueError(
+                        "Para (Escalar × A) × B, columnas de A deben ser igual a filas de B."
+                    )
+                R_escalar, pasos1 = multiplicar_escalar_matriz(escA, A)
+                R, pasos2 = multiplicar_matrices(R_escalar, B)
+
+                pasos = []
+                pasos.append(f"Operación: ({escA}·A) × B")
+                pasos.append("")
+                pasos.extend(pasos1)
+                pasos.append("")
+                pasos.extend(pasos2)
+
+            elif modo_str == "αA ± βB":
+                B = self.es_B.get_matrix()
+                escB = (self.es_valB.get() or "").strip()
+                if not escB:
+                    escB = "1"
+
+                op = self.es_op.get()
+                if op not in ("+", "-"):
+                    op = "-"
+
+                if len(A) != len(B) or len(A[0]) != len(B[0]):
+                    raise ValueError(
+                        "Para αA ± βB, A y B deben tener las mismas dimensiones."
+                    )
+
+                R, pasos = combinar_escalar_matrices(escA, A, escB, B, operador=op)
+
+            elif modo_str == "A(u+v)":
+                u = self.es_B.get_matrix()
+                v = self.es_C.get_matrix()
+
+                if len(u) != len(v) or len(u[0]) != len(v[0]):
+                    raise ValueError("u y v deben tener las mismas dimensiones.")
+
+                if len(A[0]) != len(u):
+                    raise ValueError(
+                        "Dimensiones incompatibles: columnas de A deben ser igual "
+                        "a filas de u y v."
+                    )
+
+                suma_uv, pasos1 = sumar_matrices(u, v)
+                R, pasos2 = multiplicar_matrices(A, suma_uv)
+
+                pasos = []
+                pasos.append("Operación: A(u+v)")
+                pasos.append("")
+                pasos.append("Cálculo de u + v:")
+                pasos.extend(pasos1)
+                pasos.append("")
+                pasos.append("Cálculo de A(u+v):")
+                pasos.extend(pasos2)
+
+            else:  # "Au + Av"
+                u = self.es_B.get_matrix()
+                v = self.es_C.get_matrix()
+
+                if len(A[0]) != len(u) or len(A[0]) != len(v):
+                    raise ValueError(
+                        "Dimensiones incompatibles: columnas de A deben ser igual "
+                        "a filas de u y de v."
+                    )
+
+                Au, pasos_Au = multiplicar_matrices(A, u)
+                Av, pasos_Av = multiplicar_matrices(A, v)
+                suma, pasos_sum = sumar_matrices(Au, Av)
+
+                pasos = []
+                pasos.append("Operación: Au + Av")
+                pasos.append("")
+                pasos.append("Cálculo de Au:")
+                pasos.extend(pasos_Au)
+                pasos.append("")
+                pasos.append("Cálculo de Av:")
+                pasos.extend(pasos_Av)
+                pasos.append("")
+                pasos.append("Suma Au + Av:")
+                pasos.extend(pasos_sum)
+
+                R = suma
+
         except Exception as e:
-            messagebox.showerror("Error", str(e)); return
+            messagebox.showerror("Error", str(e))
+            return
+
         self._es_resultado = R
         self._es_pasos = pasos
         self._es_idx = 0
+
         self.es_txt.delete(1.0, tk.END)
-        self.es_txt.insert(tk.END, "Cálculo inicializado. Presione 'Siguiente paso'.\n")
+        self.es_txt.insert(
+            tk.END,
+            "Cálculo inicializado. Presione 'Siguiente paso'.\n"
+        )
         self.es_next.config(state="normal")
 
     def _escalar_next(self):
         if self._es_idx < len(self._es_pasos):
-            self.es_txt.insert(tk.END, self._es_pasos[self._es_idx] + "\n\n")
+            self.es_txt.insert(
+                tk.END,
+                self._es_pasos[self._es_idx] + "\n\n"
+            )
             self._es_idx += 1
             if self._es_idx == len(self._es_pasos):
                 self.es_next.config(state="disabled")
@@ -796,11 +1164,15 @@ class App(tk.Tk):
 
     def _escalar_export(self):
         if not self._es_pasos:
-            messagebox.showinfo("Info", "No hay pasos para exportar."); return
-        fp = filedialog.asksaveasfilename(defaultextension=".txt",
-                                          filetypes=[("Texto","*.txt")],
-                                          title="Guardar registro de pasos")
-        if not fp: return
+            messagebox.showinfo("Info", "No hay pasos para exportar.")
+            return
+        fp = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Texto", "*.txt")],
+            title="Guardar registro de pasos"
+        )
+        if not fp:
+            return
         with open(fp, "w", encoding="utf-8") as f:
             for i, p in enumerate(self._es_pasos, start=1):
                 f.write(f"Paso {i}: {p}\n\n")
@@ -808,6 +1180,7 @@ class App(tk.Tk):
             for fila in self._es_resultado:
                 f.write(" ".join(str(x) for x in fila) + "\n")
         messagebox.showinfo("Listo", f"Registro exportado a: {fp}")
+
 
     # -------- Tab 5: Transpuesta --------
     def _tab_transpuesta(self):
