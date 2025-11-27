@@ -425,12 +425,19 @@ class App(tk.Tk):
         """Agrega un botón para volver al menú de inicio"""
         home_button = ttk.Button(
             self.nb,
-            text="🏠 Volver al Inicio",
+            text="Volver al Inicio",
             command=self.show_home,
             style="Accent.TButton"
         )
         # Posicionar el botón en la esquina superior derecha
         home_button.place(relx=0.95, rely=0.02, anchor="ne")
+
+    def _toggle_grid_bisec(self):
+        """Alternar la rejilla en la gráfica de bisección"""
+        if hasattr(self, 'ax_bisec'):
+            self.ax_bisec.grid(not self.ax_bisec.get_gridlines()[0].get_visible())
+            self.canvas_bisec.draw()
+
 
     def show_home(self):
         """Vuelve al menú de inicio"""
@@ -2234,514 +2241,702 @@ class App(tk.Tk):
         self.sarrus_out.insert(tk.END, f"Determinante de A:\n\n{resultado}\n")
         self._update_status("Determinante calculado correctamente con Sarrus.")
 
-    # -------- Métodos numéricos (raíces por Bisección) --------
+    # -------- Métodos numéricos (raíces por Bisección) -------
+
     def _tab_metodo_biseccion(self):
         tab = ttk.Frame(self.nb)
         self.nb.add(tab, text="Método de Bisección")
 
-        frame = ttk.Frame(tab, padding=10)
-        frame.pack(fill="both", expand=True)
+        # Frame principal
+        main_frame = ttk.Frame(tab, padding=10)
+        main_frame.pack(fill="both", expand=True)
 
-        # ---- Título y descripción ----
-        title_frame = ttk.Frame(frame)
-        title_frame.pack(fill="x", pady=(0, 10))
+        # --- PARTE SUPERIOR: Función + Gráfica ---
+        top_paned = ttk.PanedWindow(main_frame, orient="horizontal")
+        top_paned.pack(fill="both", expand=True, pady=(0, 10))
 
-        ttk.Label(title_frame, text="Método de Bisección",
-                  font=("Times New Roman", 14, "bold")).pack(anchor="w")
-        ttk.Label(title_frame, text="Encuentra raíces de f(x) = 0 en [a, b]",
-                  font=("Times New Roman", 10)).pack(anchor="w")
+        # --- COLUMNA IZQUIERDA: Calculadora Avanzada ---
+        left_frame = ttk.Labelframe(top_paned, text="Calculadora Avanzada", style="Card.TLabelframe", padding=15)
 
-        # ---- Entrada de función ----
-        func_frame = ttk.LabelFrame(frame, text="Función f(x)", padding=8)
-        func_frame.pack(fill="x", pady=5)
+        # Display de la función con LaTeX
+        func_display_frame = ttk.Frame(left_frame)
+        func_display_frame.pack(fill="x", pady=(0, 15))
 
-        func_input_frame = ttk.Frame(func_frame)
-        func_input_frame.pack(fill="x")
+        # Frame para el display LaTeX
+        self.latex_frame = ttk.Frame(func_display_frame, height=80)
+        self.latex_frame.pack(fill="x", pady=5)
+        self.latex_frame.pack_propagate(False)
 
-        ttk.Label(func_input_frame, text="f(x) =", font=("Times New Roman", 11)).pack(side="left")
+        # Inicializar display LaTeX
+        self._inicializar_latex_display()
 
-        self.fx_entry = tk.Entry(func_input_frame, width=35, font=("Consolas", 11))
-        self.fx_entry.pack(side="left", padx=5, fill="x", expand=True)
-        self.fx_entry.insert(0, "x**2 + 3*x - 5")
-        self.fx_entry.bind('<KeyRelease>', self._on_function_change)
+        # Entrada de función
+        input_frame = ttk.Frame(left_frame)
+        input_frame.pack(fill="x", pady=10)
 
-        # ---- Display visual de la función ----
-        self.fx_display = ttk.Label(func_frame, text="f(x) = x² + 3x - 5",
-                                    font=("Times New Roman", 12, "bold"),
-                                    foreground="#4fc3f7")
-        self.fx_display.pack(anchor="w", pady=(5, 0))
+        ttk.Label(input_frame, text="f(x) =", font=("Arial", 12, "bold")).pack(side="left")
+        self.fx_entry_bisec = ttk.Entry(
+            input_frame,
+            font=("Courier New", 12),
+            width=40
+        )
+        self.fx_entry_bisec.pack(side="left", fill="x", expand=True, padx=10)
+        self.fx_entry_bisec.insert(0, "x**3 - 3*x**2")
+        self.fx_entry_bisec.bind('<KeyRelease>', self._on_function_change_bisec)
 
-        # ---- Parámetros de bisección ----
-        params_frame = ttk.LabelFrame(frame, text="Parámetros", padding=8)
-        params_frame.pack(fill="x", pady=10)
+        # --- CALCULADORA COMPLETA ---
+        calc_frame = ttk.Frame(left_frame)
+        calc_frame.pack(fill="x", pady=10)
 
-        ttk.Label(params_frame, text="Intervalo [a, b]:", font=("Times New Roman", 10)).grid(row=0, column=0, padx=5,
-                                                                                             sticky="w")
+        # Fila 1: Botones superiores
+        row0 = ttk.Frame(calc_frame)
+        row0.pack(fill="x", pady=2)
 
-        ttk.Label(params_frame, text="a =").grid(row=0, column=1, padx=2)
-        self.a_entry = tk.Entry(params_frame, width=12, font=("Consolas", 10))
-        self.a_entry.grid(row=0, column=2, padx=5)
-        self.a_entry.insert(0, "1.0")
+        buttons_row0 = [
+            ("2nd", lambda: self._toggle_second_functions(), "#666666"),
+            ("const", lambda: self._insert_constant(), "#666666"),
+            ("T", lambda: self._insert_variable("t"), "#666666"),
+            ("e", lambda: self._insert_constant("e"), "#666666"),
+            ("[::]", lambda: self._insert_matrix(), "#666666"),
+            ("x", lambda: self._insert_variable("x"), "#4CAF50"),
+            ("(", lambda: self._insert_operator("("), "#2196F3"),
+            (",", lambda: self._insert_operator(","), "#2196F3"),
+            (")", lambda: self._insert_operator(")"), "#2196F3"),
+            ("⇌", lambda: self._clear_entry(), "#FF5722")
+        ]
 
-        ttk.Label(params_frame, text="b =").grid(row=0, column=3, padx=2)
-        self.b_entry = tk.Entry(params_frame, width=12, font=("Consolas", 10))
-        self.b_entry.grid(row=0, column=4, padx=5)
-        self.b_entry.insert(0, "2.0")
+        for i, (text, command, color) in enumerate(buttons_row0):
+            btn = tk.Button(
+                row0,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
 
-        ttk.Label(params_frame, text="Tolerancia:").grid(row=0, column=5, padx=(20, 2))
-        self.tol_entry = tk.Entry(params_frame, width=12, font=("Consolas", 10))
-        self.tol_entry.grid(row=0, column=6, padx=5)
-        self.tol_entry.insert(0, "0.00001")
+        # Fila 2: Funciones trigonométricas
+        row1 = ttk.Frame(calc_frame)
+        row1.pack(fill="x", pady=2)
 
-        # Fila para botón de intervalo automático y botones de acción
-        auto_frame = ttk.Frame(params_frame)
-        auto_frame.grid(row=1, column=0, columnspan=7, pady=(10, 0), sticky="w")
+        buttons_row1 = [
+            ("sin", lambda: self._insert_function("sin"), "#9C27B0"),
+            ("sinh", lambda: self._insert_function("sinh"), "#9C27B0"),
+            ("cot", lambda: self._insert_function("cot"), "#9C27B0"),
+            ("y√x", lambda: self._insert_function("yroot"), "#FF9800"),
+            ("xʸ", lambda: self._insert_operator("**"), "#FF9800"),
+            ("7", lambda: self._insert_digit("7"), "#37474F"),
+            ("8", lambda: self._insert_digit("8"), "#37474F"),
+            ("9", lambda: self._insert_digit("9"), "#37474F"),
+            ("÷", lambda: self._insert_operator("/"), "#2196F3")
+        ]
 
-        ttk.Button(auto_frame, text="Buscar Intervalo Automático",
-                   command=self._buscar_intervalo_valido).pack(side="left", padx=6)
+        for i, (text, command, color) in enumerate(buttons_row1):
+            btn = tk.Button(
+                row1,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
 
-        # NUEVO: Botón para graficar antes de calcular
-        ttk.Button(auto_frame, text="Graficar función",
-                   command=self._graficar_funcion).pack(side="left", padx=6)
+        # Fila 3: Más funciones
+        row2 = ttk.Frame(calc_frame)
+        row2.pack(fill="x", pady=2)
 
-        self.calc_btn = ttk.Button(auto_frame, text="Calcular Bisección",
-                                   style="Accent.TButton",
-                                   command=self._calc_biseccion)
-        self.calc_btn.pack(side="left", padx=6)
+        buttons_row2 = [
+            ("cos", lambda: self._insert_function("cos"), "#9C27B0"),
+            ("cosh", lambda: self._insert_function("cosh"), "#9C27B0"),
+            ("sec", lambda: self._insert_function("sec"), "#9C27B0"),
+            ("³√x", lambda: self._insert_function("cbrt"), "#FF9800"),
+            ("x³", lambda: self._insert_power("3"), "#FF9800"),
+            ("4", lambda: self._insert_digit("4"), "#37474F"),
+            ("5", lambda: self._insert_digit("5"), "#37474F"),
+            ("6", lambda: self._insert_digit("6"), "#37474F"),
+            ("×", lambda: self._insert_operator("*"), "#2196F3")
+        ]
 
-        ttk.Button(auto_frame, text="Limpiar",
-                   command=self._limpiar_biseccion).pack(side="left", padx=6)
+        for i, (text, command, color) in enumerate(buttons_row2):
+            btn = tk.Button(
+                row2,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
 
-        # ---- Tabla de iteraciones ----
-        table_frame = ttk.LabelFrame(frame, text="Iteraciones del Método de Bisección", padding=8)
-        table_frame.pack(fill="both", expand=True, pady=10)
+        # Fila 4: Funciones adicionales
+        row3 = ttk.Frame(calc_frame)
+        row3.pack(fill="x", pady=2)
 
+        buttons_row3 = [
+            ("tan", lambda: self._insert_function("tan"), "#9C27B0"),
+            ("tanh", lambda: self._insert_function("tanh"), "#9C27B0"),
+            ("csc", lambda: self._insert_function("csc"), "#9C27B0"),
+            ("√x", lambda: self._insert_function("sqrt"), "#FF9800"),
+            ("x²", lambda: self._insert_power("2"), "#FF9800"),
+            ("1", lambda: self._insert_digit("1"), "#37474F"),
+            ("2", lambda: self._insert_digit("2"), "#37474F"),
+            ("3", lambda: self._insert_digit("3"), "#37474F"),
+            ("-", lambda: self._insert_operator("-"), "#2196F3")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row3):
+            btn = tk.Button(
+                row3,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 5: Última fila
+        row4 = ttk.Frame(calc_frame)
+        row4.pack(fill="x", pady=2)
+
+        buttons_row4 = [
+            ("nCr", lambda: self._insert_combination(), "#E91E63"),
+            ("nPr", lambda: self._insert_permutation(), "#E91E63"),
+            ("%", lambda: self._insert_operator("%"), "#E91E63"),
+            ("log", lambda: self._insert_function("log"), "#FF9800"),
+            ("10ˣ", lambda: self._insert_function("exp10"), "#FF9800"),
+            ("0", lambda: self._insert_digit("0"), "#37474F"),
+            (".", lambda: self._insert_decimal(), "#37474F"),
+            ("⇌", lambda: self._backspace(), "#FF5722"),
+            ("+", lambda: self._insert_operator("+"), "#2196F3")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row4):
+            btn = tk.Button(
+                row4,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 6: Botones de control
+        row5 = ttk.Frame(calc_frame)
+        row5.pack(fill="x", pady=2)
+
+        buttons_row5 = [
+            ("π", lambda: self._insert_constant("pi"), "#607D8B"),
+            ("e", lambda: self._insert_constant("e"), "#607D8B"),
+            ("∞", lambda: self._insert_constant("inf"), "#607D8B"),
+            ("ln", lambda: self._insert_function("ln"), "#FF9800"),
+            ("eˣ", lambda: self._insert_function("exp"), "#FF9800"),
+            ("(", lambda: self._insert_operator("("), "#2196F3"),
+            (")", lambda: self._insert_operator(")"), "#2196F3"),
+            ("=", lambda: self._actualizar_grafica_bisec(), "#4CAF50"),
+            ("C", lambda: self._clear_entry(), "#F44336")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row5):
+            btn = tk.Button(
+                row5,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # --- PARÁMETROS DEL MÉTODO ---
+        params_frame = ttk.LabelFrame(left_frame, text="Parámetros del Método", padding=10)
+        params_frame.pack(fill="x", pady=15)
+
+        # Intervalo
+        interval_frame = ttk.Frame(params_frame)
+        interval_frame.pack(fill="x", pady=5)
+
+        ttk.Label(interval_frame, text="Intervalo [a, b]:", font=("Arial", 10, "bold")).pack(side="left")
+        ttk.Label(interval_frame, text="a =").pack(side="left", padx=(15, 2))
+        self.a_entry_bisec = ttk.Entry(interval_frame, width=10, font=("Arial", 10))
+        self.a_entry_bisec.pack(side="left", padx=2)
+        self.a_entry_bisec.insert(0, "1.0")
+
+        ttk.Label(interval_frame, text="b =").pack(side="left", padx=(10, 2))
+        self.b_entry_bisec = ttk.Entry(interval_frame, width=10, font=("Arial", 10))
+        self.b_entry_bisec.pack(side="left", padx=2)
+        self.b_entry_bisec.insert(0, "3.0")
+
+        # Tolerancia y botones
+        control_frame = ttk.Frame(params_frame)
+        control_frame.pack(fill="x", pady=10)
+
+        ttk.Label(control_frame, text="Tolerancia:", font=("Arial", 10)).pack(side="left")
+        self.tol_entry_bisec = ttk.Entry(control_frame, width=10, font=("Arial", 10))
+        self.tol_entry_bisec.pack(side="left", padx=5)
+        self.tol_entry_bisec.insert(0, "0.00001")
+
+        ttk.Button(control_frame, text="🔍 Buscar Intervalo",
+                   command=self._buscar_intervalo_valido_bisec).pack(side="left", padx=5)
+        ttk.Button(control_frame, text="🚀 Calcular Bisección",
+                   style="Accent.TButton",
+                   command=self._calc_biseccion_new).pack(side="left", padx=5)
+
+        top_paned.add(left_frame, weight=1)
+
+        # --- COLUMNA DERECHA: Gráfica (estilo GeoGebra) ---
+        right_frame = ttk.Labelframe(top_paned, text="Gráfica Interactiva", style="Card.TLabelframe", padding=10)
+
+        # Controles de la gráfica
+        graph_controls = ttk.Frame(right_frame)
+        graph_controls.pack(fill="x", pady=(0, 10))
+
+        ttk.Button(graph_controls, text="🔄 Actualizar",
+                   command=self._actualizar_grafica_bisec).pack(side="left")
+        ttk.Button(graph_controls, text="➖ Zoom -",
+                   command=lambda: self._zoom_grafica_bisec(1.2)).pack(side="left", padx=5)
+        ttk.Button(graph_controls, text="➕ Zoom +",
+                   command=lambda: self._zoom_grafica_bisec(0.8)).pack(side="left", padx=5)
+
+        # Frame para la gráfica
+        self.graph_frame_bisec = ttk.Frame(right_frame)
+        self.graph_frame_bisec.pack(fill="both", expand=True)
+
+        # Inicializar gráfica
+        self._inicializar_grafica_bisec()
+
+        top_paned.add(right_frame, weight=2)
+
+        # --- PARTE INFERIOR: Tabla de iteraciones ---
+        table_frame = ttk.Labelframe(main_frame, text="📊 Tabla de Iteraciones - Método de Bisección",
+                                     style="Card.TLabelframe", padding=8)
+        table_frame.pack(fill="both", expand=True)
+
+        # Crear tabla
         columns = ("k", "a", "b", "c", "f(a)", "f(b)", "f(c)", "error")
-        self.bis_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=15)
+        self.bis_tree_new = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
 
-        headings = ["k", "a", "b", "c", "f(a)", "f(b)", "f(c)", "Error"]
-        widths = [50, 90, 90, 90, 100, 100, 100, 90]
+        headings = ["Iter", "a", "b", "c", "f(a)", "f(b)", "f(c)", "Error"]
+        widths = [60, 100, 100, 100, 120, 120, 120, 100]
 
         for col, heading, width in zip(columns, headings, widths):
-            self.bis_tree.heading(col, text=heading)
-            self.bis_tree.column(col, width=width, anchor="center")
+            self.bis_tree_new.heading(col, text=heading)
+            self.bis_tree_new.column(col, width=width, anchor="center")
 
-        scrollbar_table = ttk.Scrollbar(table_frame, orient="vertical", command=self.bis_tree.yview)
-        self.bis_tree.configure(yscrollcommand=scrollbar_table.set)
-        self.bis_tree.pack(side="left", fill="both", expand=True)
+        # Scrollbar para la tabla
+        scrollbar_table = ttk.Scrollbar(table_frame, orient="vertical", command=self.bis_tree_new.yview)
+        self.bis_tree_new.configure(yscrollcommand=scrollbar_table.set)
+
+        self.bis_tree_new.pack(side="left", fill="both", expand=True)
         scrollbar_table.pack(side="right", fill="y")
 
-        # ---- Información de estado ----
-        status_frame = ttk.Frame(frame)
-        status_frame.pack(fill="x", pady=5)
+        # Estado
+        self.biseccion_status_new = ttk.Label(main_frame,
+                                              text="🟢 Listo para calcular - Ingresa una función y parámetros")
+        self.biseccion_status_new.pack(anchor="w", pady=5)
 
-        self.biseccion_status = ttk.Label(status_frame, text="Listo para calcular", font=("Times New Roman", 9))
-        self.biseccion_status.pack(anchor="w")
+        # Inicializar gráfica después de crear todos los componentes
+        self.after(100, self._actualizar_grafica_bisec)
 
-    def _on_function_change(self, event=None):
-        """Actualiza el display visual cuando cambia la función"""
+    def _inicializar_latex_display(self):
+        """Inicializa el display LaTeX para la función"""
         try:
-            raw_text = self.fx_entry.get()
-            display_text = self._convert_to_display(raw_text)
-            self.fx_display.config(text=f"f(x) = {display_text}")
-        except:
-            self.fx_display.config(text="f(x) = ?")
+            # Crear figura para LaTeX
+            self.fig_latex = plt.figure(figsize=(8, 1), dpi=100)
+            self.ax_latex = self.fig_latex.add_subplot(111)
+            self.ax_latex.axis('off')
 
-    def _parse_calculation(self, func_str):
-        import re
-        import numpy as np
+            # Canvas para LaTeX
+            self.canvas_latex = FigureCanvasTkAgg(self.fig_latex, master=self.latex_frame)
+            self.canvas_latex.get_tk_widget().pack(fill="both", expand=True)
 
-        calc_str = (func_str or "").strip()
-        if not calc_str:
-            return lambda x: 0
+            # Mostrar función inicial
+            self._actualizar_latex_display("x^3 - 3x^2")
 
-        calc_str = calc_str.replace("^", "**")
-        superscript_map = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789-")
-        calc_str = calc_str.translate(superscript_map)
-
-
-        calc_str = re.sub(r'(?<=\d)(?=[A-Za-z\(])', '*', calc_str)
-
-
-        calc_str = re.sub(r'(?<=[A-Za-z])(?=\d)', '*', calc_str)
-
-
-        calc_str = re.sub(r'\)\s*\(', ')*(', calc_str)
-
-
-        calc_str = re.sub(r'(?<=\))(?=[A-Za-z0-9])', '*', calc_str)
-
-
-        FUNC_NAMES = {
-            "sin", "cos", "tan", "asin", "acos", "atan",
-            "sinh", "cosh", "tanh", "exp", "sqrt", "abs",
-            "ln", "log", "log10", "pow", "np"
-        }
-
-        def _mul_before_paren(m):
-            token = m.group(1)
-
-            if token in FUNC_NAMES:
-                return token + "("
-
-            return token + "*("
-
-        calc_str = re.sub(r'([A-Za-z0-9_]+)\s*\(', _mul_before_paren, calc_str)
-
-
-        try:
-            code = compile(calc_str, "<userfunc>", "eval")
         except Exception as e:
-            raise ValueError(f"Invalid function expression: {e}")
+            print(f"Error inicializando LaTeX: {e}")
 
-
-        def _log(x, base=None):
-            if base is None:
-                return np.log10(x)
-            return np.log(x) / np.log(base)
-
-
-        safe_globals = {
-            "__builtins__": {"__import__": __import__},
-            "sin": np.sin,
-            "cos": np.cos,
-            "tan": np.tan,
-            "asin": np.arcsin,
-            "acos": np.arccos,
-            "atan": np.arctan,
-            "sinh": np.sinh,
-            "cosh": np.cosh,
-            "tanh": np.tanh,
-            "exp": np.exp,
-            "sqrt": np.sqrt,
-            "abs": np.abs,
-            "pow": np.power,
-            "ln": np.log,
-            "log": _log,
-            "log10": np.log10,
-            "pi": np.pi,
-            "e": np.e,
-            "np": np,
-        }
-
-        def f(x):
-            try:
-                return eval(code, safe_globals, {"x": x})
-            except Exception as e:
-                raise ValueError(f"Error evaluating function at x={x}: {e}")
-
-        return f
-
-    def _convert_to_display(self, text):
-        """Convierte a notación matemática visual"""
-        if not text.strip():
-            return ""
-
-        display = text
-
-        # Reemplazar operadores
-        display = display.replace('**', '^').replace('*', '·')
-
-        # Reemplazar funciones para visualización
-        function_display = {
-            'math.log': 'ln',
-            'math.log10': 'log',
-            'math.sin': 'sin',
-            'math.cos': 'cos',
-            'math.tan': 'tan',
-            'math.acos': 'acos',
-            'math.asin': 'asin',
-            'math.atan': 'atan',
-            'sqrt': '√',
-            'exp': 'e',
-            'pi': 'π'
-        }
-
-        for py_func, display_func in function_display.items():
-            display = display.replace(py_func, display_func)
-
-        # Eliminar math. restante
-        display = re.sub(r'math\.', '', display)
-
-        # Multiplicaciones implícitas
-        display = re.sub(r'(\d)([a-zA-Z])', r'\1·\2', display)
-        display = re.sub(r'([a-zA-Z])(\d)', r'\1·\2', display)
-
-        # Superíndices
-        superscript_map = str.maketrans("0123456789-", "⁰¹²³⁴⁵⁶⁷⁸⁹⁻")
-        display = re.sub(r'(\w)\^(\d+)',
-                         lambda m: m.group(1) + m.group(2).translate(superscript_map),
-                         display)
-
-        return display
-
-    def _buscar_intervalo_valido(self):
-        """Busca automáticamente un intervalo donde la función cambie de signo"""
+    def _actualizar_latex_display(self, func_text):
+        """Actualiza el display LaTeX con la función"""
         try:
-            func_str = self.fx_entry.get()
+            self.ax_latex.clear()
+            self.ax_latex.axis('off')
+
+            # Convertir a formato LaTeX
+            latex_text = self._convert_to_latex(func_text)
+
+            # Renderizar LaTeX
+            self.ax_latex.text(0.5, 0.5, f"${latex_text}$",
+                               fontsize=16, ha='center', va='center',
+                               transform=self.ax_latex.transAxes)
+
+            self.canvas_latex.draw()
+
+        except Exception as e:
+            print(f"Error actualizando LaTeX: {e}")
+
+    def _convert_to_latex(self, text):
+        """Convierte texto de función a formato LaTeX"""
+        if not text.strip():
+            return "f(x) = "
+
+        # Reemplazos para LaTeX
+        latex_text = text
+
+        # Operadores
+        latex_text = latex_text.replace('**', '^')
+        latex_text = latex_text.replace('*', '\\cdot ')
+
+        # Funciones matemáticas
+        func_replacements = {
+            'sin': '\\sin', 'cos': '\\cos', 'tan': '\\tan',
+            'sinh': '\\sinh', 'cosh': '\\cosh', 'tanh': '\\tanh',
+            'cot': '\\cot', 'sec': '\\sec', 'csc': '\\csc',
+            'log': '\\log', 'ln': '\\ln', 'sqrt': '\\sqrt',
+            'exp': 'e^', 'pi': '\\pi', 'inf': '\\infty'
+        }
+
+        for func, latex_func in func_replacements.items():
+            latex_text = latex_text.replace(func, latex_func)
+
+        # Raíces
+        latex_text = re.sub(r'sqrt\(([^)]+)\)', r'\\sqrt{\1}', latex_text)
+        latex_text = re.sub(r'cbrt\(([^)]+)\)', r'\\sqrt[3]{\1}', latex_text)
+        latex_text = re.sub(r'yroot\(([^,]+),([^)]+)\)', r'\\sqrt[\1]{\2}', latex_text)
+
+        # Fracciones implícitas
+        latex_text = re.sub(r'(\d)/(\d)', r'\\frac{\1}{\2}', latex_text)
+
+        return f"f(x) = {latex_text}"
+
+    # --- FUNCIONES DE LA CALCULADORA ---
+
+    def _insert_digit(self, digit):
+        """Inserta un dígito"""
+        self.fx_entry_bisec.insert(tk.END, digit)
+        self._on_function_change_bisec()
+
+    def _insert_operator(self, op):
+        """Inserta un operador"""
+        self.fx_entry_bisec.insert(tk.END, op)
+        self._on_function_change_bisec()
+
+    def _insert_function(self, func):
+        """Inserta una función"""
+        if func in ["sin", "cos", "tan", "sinh", "cosh", "tanh", "cot", "sec", "csc", "log", "ln", "sqrt", "cbrt"]:
+            self.fx_entry_bisec.insert(tk.END, f"{func}(")
+        elif func == "exp":
+            self.fx_entry_bisec.insert(tk.END, "exp(")
+        elif func == "exp10":
+            self.fx_entry_bisec.insert(tk.END, "10**")
+        elif func == "yroot":
+            self.fx_entry_bisec.insert(tk.END, "yroot(")
+        self._on_function_change_bisec()
+
+    def _insert_power(self, power):
+        """Inserta una potencia"""
+        self.fx_entry_bisec.insert(tk.END, f"**{power}")
+        self._on_function_change_bisec()
+
+    def _insert_constant(self, const="pi"):
+        """Inserta una constante"""
+        if const == "pi":
+            self.fx_entry_bisec.insert(tk.END, "pi")
+        elif const == "e":
+            self.fx_entry_bisec.insert(tk.END, "e")
+        elif const == "inf":
+            self.fx_entry_bisec.insert(tk.END, "inf")
+        self._on_function_change_bisec()
+
+    def _insert_variable(self, var):
+        """Inserta una variable"""
+        self.fx_entry_bisec.insert(tk.END, var)
+        self._on_function_change_bisec()
+
+    def _insert_decimal(self):
+        """Inserta punto decimal"""
+        self.fx_entry_bisec.insert(tk.END, ".")
+        self._on_function_change_bisec()
+
+    def _insert_combination(self):
+        """Inserta combinación nCr"""
+        self.fx_entry_bisec.insert(tk.END, "nCr(")
+        self._on_function_change_bisec()
+
+    def _insert_permutation(self):
+        """Inserta permutación nPr"""
+        self.fx_entry_bisec.insert(tk.END, "nPr(")
+        self._on_function_change_bisec()
+
+    def _insert_matrix(self):
+        """Inserta matriz"""
+        self.fx_entry_bisec.insert(tk.END, "matrix(")
+        self._on_function_change_bisec()
+
+    def _clear_entry(self):
+        """Limpia la entrada"""
+        self.fx_entry_bisec.delete(0, tk.END)
+        self._on_function_change_bisec()
+
+    def _backspace(self):
+        """Elimina el último carácter"""
+        current = self.fx_entry_bisec.get()
+        if current:
+            self.fx_entry_bisec.delete(0, tk.END)
+            self.fx_entry_bisec.insert(0, current[:-1])
+        self._on_function_change_bisec()
+
+    def _toggle_second_functions(self):
+        """Alterna funciones secundarias (placeholder)"""
+        messagebox.showinfo("2nd", "Funciones secundarias activadas")
+
+    def _on_function_change_bisec(self, event=None):
+        """Actualiza el display LaTeX cuando cambia la función"""
+        try:
+            raw_text = self.fx_entry_bisec.get()
+            self._actualizar_latex_display(raw_text)
+        except:
+            self._actualizar_latex_display("")
+
+    def _inicializar_grafica_bisec(self):
+        """Inicializa la gráfica estilo GeoGebra"""
+        if hasattr(self, 'fig_bisec'):
+            return
+
+        self.fig_bisec = plt.figure(figsize=(6, 4), dpi=100)
+        self.ax_bisec = self.fig_bisec.add_subplot(111)
+
+        # Estilo GeoGebra
+        self.ax_bisec.set_facecolor('#F5F5F5')
+        self.fig_bisec.patch.set_facecolor('#FFFFFF')
+        self.ax_bisec.grid(True, color='gray', linestyle='--', alpha=0.7)
+        self.ax_bisec.axhline(y=0, color='k', linewidth=1)
+        self.ax_bisec.axvline(x=0, color='k', linewidth=1)
+        self.ax_bisec.set_xlabel('x', fontsize=12)
+        self.ax_bisec.set_ylabel('f(x)', fontsize=12)
+        self.ax_bisec.set_title('Gráfica de la función', fontsize=14, pad=20)
+
+        # Canvas
+        self.canvas_bisec = FigureCanvasTkAgg(self.fig_bisec, master=self.graph_frame_bisec)
+        self.canvas_bisec.draw()
+        self.canvas_bisec.get_tk_widget().pack(fill="both", expand=True)
+
+        # Toolbar
+        self.toolbar_bisec = NavigationToolbar2Tk(self.canvas_bisec, self.graph_frame_bisec)
+        self.toolbar_bisec.update()
+        self.toolbar_bisec.pack(side="bottom", fill="x")
+
+    def _actualizar_grafica_bisec(self):
+        """Actualiza la gráfica con la función actual"""
+        try:
+            func_str = self.fx_entry_bisec.get()
+            f = self._parse_calculation(func_str)
+
+            # Limpiar gráfica
+            self.ax_bisec.clear()
+
+            # Obtener intervalo
+            try:
+                a = float(self.a_entry_bisec.get())
+                b = float(self.b_entry_bisec.get())
+                if a >= b:
+                    a, b = -5, 5
+            except:
+                a, b = -5, 5
+
+            # Calcular puntos
+            x_vals = np.linspace(a - 1, b + 1, 400)
+            y_vals = [f(x) for x in x_vals]
+
+            # Graficar
+            self.ax_bisec.plot(x_vals, y_vals, 'b-', linewidth=2, label=f'f(x) = {self._convert_to_display(func_str)}')
+            self.ax_bisec.axhline(y=0, color='k', linestyle='-', alpha=0.5)
+
+            # Marcar intervalo si es válido
+            try:
+                fa = f(a)
+                fb = f(b)
+                self.ax_bisec.axvline(x=a, color='r', linestyle='--', alpha=0.7, label=f'a = {a:.2f}')
+                self.ax_bisec.axvline(x=b, color='g', linestyle='--', alpha=0.7, label=f'b = {b:.2f}')
+                self.ax_bisec.plot(a, fa, 'ro', markersize=6)
+                self.ax_bisec.plot(b, fb, 'go', markersize=6)
+            except:
+                pass
+
+            # Restaurar estilo
+            self.ax_bisec.set_facecolor('#F5F5F5')
+            self.ax_bisec.grid(True, color='gray', linestyle='--', alpha=0.7)
+            self.ax_bisec.axhline(y=0, color='k', linewidth=1)
+            self.ax_bisec.axvline(x=0, color='k', linewidth=1)
+            self.ax_bisec.set_xlabel('x', fontsize=12)
+            self.ax_bisec.set_ylabel('f(x)', fontsize=12)
+            self.ax_bisec.set_title('Gráfica de la función', fontsize=14, pad=20)
+            self.ax_bisec.legend()
+
+            self.canvas_bisec.draw()
+
+        except Exception as e:
+            print(f"Error al graficar: {e}")
+
+    def _zoom_grafica_bisec(self, factor):
+        """Aplica zoom a la gráfica"""
+        try:
+            xlim = self.ax_bisec.get_xlim()
+            ylim = self.ax_bisec.get_ylim()
+
+            x_center = (xlim[0] + xlim[1]) / 2
+            y_center = (ylim[0] + ylim[1]) / 2
+
+            x_range = (xlim[1] - xlim[0]) * factor
+            y_range = (ylim[1] - ylim[0]) * factor
+
+            self.ax_bisec.set_xlim(x_center - x_range / 2, x_center + x_range / 2)
+            self.ax_bisec.set_ylim(y_center - y_range / 2, y_center + y_range / 2)
+
+            self.canvas_bisec.draw()
+        except:
+            pass
+
+    def _insert_function_bisec(self, func):
+        """Inserta una función predefinida"""
+        current = self.fx_entry_bisec.get()
+        if func == "x²":
+            self.fx_entry_bisec.insert(tk.END, "x**2")
+        elif func == "x³":
+            self.fx_entry_bisec.insert(tk.END, "x**3")
+        elif func == "e^x":
+            self.fx_entry_bisec.insert(tk.END, "exp(x)")
+        elif func == "ln(x)":
+            self.fx_entry_bisec.insert(tk.END, "log(x)")
+        elif func == "√x":
+            self.fx_entry_bisec.insert(tk.END, "sqrt(x)")
+        else:
+            self.fx_entry_bisec.insert(tk.END, func)
+        self._on_function_change_bisec()
+
+    def _insert_operator_bisec(self, op):
+        """Inserta un operador"""
+        if op == "^":
+            op = "**"
+        elif op == "=":
+            self._actualizar_grafica_bisec()
+            return
+        self.fx_entry_bisec.insert(tk.END, op)
+        self._on_function_change_bisec()
+
+    def _on_function_change_bisec(self, event=None):
+        """Actualiza el display LaTeX cuando cambia la función"""
+        try:
+            raw_text = self.fx_entry_bisec.get()
+            self._actualizar_latex_display(raw_text)
+        except Exception as e:
+            print(f"Error actualizando LaTeX: {e}")
+            # Si hay error, limpia el display LaTeX
+            try:
+                self._actualizar_latex_display("")
+            except:
+                pass
+
+    def _buscar_intervalo_valido_bisec(self):
+        """Busca automáticamente un intervalo válido"""
+        try:
+            func_str = self.fx_entry_bisec.get()
             f = self._parse_calculation(func_str)
 
             from numericos import encontrar_intervalo_automatico
             a, b, mensaje = encontrar_intervalo_automatico(f)
 
-            # Actualizar los campos de intervalo
-            self.a_entry.delete(0, tk.END)
-            self.a_entry.insert(0, f"{a:.4f}")
-            self.b_entry.delete(0, tk.END)
-            self.b_entry.insert(0, f"{b:.4f}")
+            self.a_entry_bisec.delete(0, tk.END)
+            self.a_entry_bisec.insert(0, f"{a:.4f}")
+            self.b_entry_bisec.delete(0, tk.END)
+            self.b_entry_bisec.insert(0, f"{b:.4f}")
 
-            self.biseccion_status.config(text="Intervalo encontrado automáticamente")
-
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo encontrar intervalo automático: {str(e)}")
-
-    def _graficar_funcion(self):
-        """Muestra una vista previa de f(x) en el intervalo [a, b] sin ejecutar la bisección."""
-        try:
-            func_str = self.fx_entry.get().strip()
-            if not func_str:
-                raise ValueError("Ingresa una expresión para f(x).")
-
-            f = self._parse_calculation(func_str)
-
-            # Intentar leer a y b; si no son válidos, buscar intervalo automático
-            a_txt = self.a_entry.get().strip()
-            b_txt = self.b_entry.get().strip()
-
-            try:
-                a = float(a_txt)
-                b = float(b_txt)
-            except Exception:
-                # Fallback: buscar intervalo automáticamente y actualizar entradas
-                from numericos import encontrar_intervalo_automatico
-                a, b, _ = encontrar_intervalo_automatico(f)
-                self.a_entry.delete(0, tk.END); self.a_entry.insert(0, f"{a:.6f}")
-                self.b_entry.delete(0, tk.END); self.b_entry.insert(0, f"{b:.6f}")
-
-            # Asegurar orden y evitar intervalo degenerado
-            if a > b:
-                a, b = b, a
-            if a == b:
-                a -= 1.0
-                b += 1.0
-
-            # Crear ventana emergente
-            popup = tk.Toplevel(self)
-            popup.title("Vista previa de f(x)")
-            popup.geometry("900x550")
-            popup.minsize(700, 450)
-            popup.transient(self)
-            popup.grab_set()
-            configurar_estilo_oscuro(popup)
-
-            # Contenedor
-            container = ttk.Frame(popup, padding=10)
-            container.pack(fill="both", expand=True)
-
-            # Figura de Matplotlib
-            fig = plt.figure(figsize=(8, 4.8), dpi=100)
-            ax = fig.add_subplot(111)
-
-            # Preparar datos
-            import numpy as np
-            margen = 0.1 * (b - a if b != a else 1.0)
-            xs = np.linspace(a - margen, b + margen, 600)
-            ys = []
-            for x in xs:
-                try:
-                    ys.append(f(x))
-                except Exception:
-                    ys.append(np.nan)
-
-            # Graficar
-            ax.plot(xs, ys, linewidth=2, label=f'f(x) = {self._convert_to_display(func_str)}')
-            ax.axhline(0, color='k', linestyle='-', alpha=0.7)
-            ax.axvline(a, color='r', linestyle='--', alpha=0.7, label=f'a = {a:.4f}')
-            ax.axvline(b, color='g', linestyle='--', alpha=0.7, label=f'b = {b:.4f}')
-            ax.set_xlabel('x')
-            ax.set_ylabel('f(x)')
-            ax.set_title('Vista previa de f(x) en el intervalo')
-            ax.grid(True, alpha=0.3)
-            ax.legend()
-
-            canvas = FigureCanvasTkAgg(fig, master=container)
-            canvas.draw()
-
-            toolbar = NavigationToolbar2Tk(canvas, container)
-            toolbar.update()
-            toolbar.pack(side="bottom", fill="x")
-
-            canvas.get_tk_widget().pack(fill="both", expand=True)
+            self._actualizar_grafica_bisec()
+            self.biseccion_status_new.config(text="Intervalo encontrado automáticamente")
 
         except Exception as e:
-            messagebox.showerror("No se pudo graficar", str(e))
+            messagebox.showerror("Error", f"No se pudo encontrar intervalo: {str(e)}")
 
-    def _limpiar_biseccion(self):
-        """Limpia todos los resultados de bisección"""
-        for item in self.bis_tree.get_children():
-            self.bis_tree.delete(item)
-        self.biseccion_status.config(text="Resultados limpiados - Listo para calcular")
-
-    def _calc_biseccion(self):
-        """Calcula bisección y muestra resultados en ventana emergente"""
+    def _calc_biseccion_new(self):
+        """Calcula bisección con las nuevas entradas"""
         # Limpiar tabla
-        for item in self.bis_tree.get_children():
-            self.bis_tree.delete(item)
+        for item in self.bis_tree_new.get_children():
+            self.bis_tree_new.delete(item)
 
         try:
-            # USAR PARSER DE EJECUCIÓN
-            func_str = self.fx_entry.get()
+            func_str = self.fx_entry_bisec.get()
             f = self._parse_calculation(func_str)
-            a = float(self.a_entry.get())
-            b = float(self.b_entry.get())
+            a = float(self.a_entry_bisec.get())
+            b = float(self.b_entry_bisec.get())
+            tol = float(self.tol_entry_bisec.get())
 
-            # Manejar tolerancia vacía (valor por defecto 0)
-            tol_str = self.tol_entry.get().strip()
-            if tol_str == "":
-                tol = 0.00001  # Valor por defecto
-                self.tol_entry.delete(0, tk.END)
-                self.tol_entry.insert(0, "0.00001")
-            else:
-                tol = float(tol_str)
-
-            # Validaciones
             if a >= b:
                 raise ValueError("Debe cumplirse: a < b")
 
-            # Calcular bisección
+            # Verificar cambio de signo
+            fa = f(a)
+            fb = f(b)
+            if fa * fb > 0:
+                raise ValueError("La función debe tener signos opuestos en a y b (f(a)*f(b) < 0)")
+
             from numericos import biseccion
             raiz, pasos, motivo = biseccion(f, a, b, tol=tol, max_iter=100, usar_error="absoluto")
 
             # Mostrar en tabla
-            self._mostrar_resultados_biseccion(pasos, raiz, motivo)
+            self._mostrar_resultados_biseccion_new(pasos, raiz, motivo)
 
-            # Mostrar ventana emergente con resultados
-            self._mostrar_resultados_popup(func_str, f, a, b, raiz, pasos, motivo)
+            # Actualizar gráfica con la raíz encontrada
+            self._actualizar_grafica_con_raiz_bisec(raiz, f)
 
-            # Actualizar estado
-            self.biseccion_status.config(text=f"Bisección completada - {len(pasos)} iteraciones")
-            if hasattr(self, "lbl_result"):
-                self.lbl_result.config(text=f"Raíz ≈ {raiz:.8f} ({motivo})")
+            self.biseccion_status_new.config(
+                text=f"Bisección completada - {len(pasos)} iteraciones - Raíz ≈ {raiz:.8f}")
 
         except Exception as e:
             messagebox.showerror("Error en bisección", str(e))
 
-    def _mostrar_resultados_popup(self, func_str, f, a, b, raiz, pasos, motivo):
-        """Muestra ventana emergente con gráfica y resultados"""
-        # Crear ventana emergente
-        popup = tk.Toplevel(self)
-        popup.title("Resultados - Método de Bisección")
-        popup.geometry("1020x600")
-        popup.minsize(800, 600)
-        popup.transient(self)
-        popup.grab_set()
+    def _actualizar_grafica_con_raiz_bisec(self, raiz, f):
+        """Actualiza la gráfica marcando la raíz encontrada"""
+        try:
+            # Limpiar y volver a graficar
+            self._actualizar_grafica_bisec()
+            # Marcar la raíz
+            self.ax_bisec.plot(raiz, f(raiz), 'ro', markersize=10, markerfacecolor='red',
+                               markeredgecolor='darkred', markeredgewidth=2,
+                               label=f'Raíz ≈ {raiz:.6f}')
+            self.ax_bisec.legend()
+            self.canvas_bisec.draw()
+        except Exception as e:
+            print(f"Error al actualizar gráfica con raíz: {e}")
 
-        # Configurar estilo oscuro
-        configurar_estilo_oscuro(popup)
-
-        # Frame principal
-        main_frame = ttk.Frame(popup, padding=10)
-        main_frame.pack(fill="both", expand=True)
-
-        # Título
-        title_label = ttk.Label(main_frame, text="Resultados del Método de Bisección",
-                                font=("Times New Roman", 14, "bold"))
-        title_label.pack(pady=(0, 10))
-
-        # Frame para gráfica y resultados
-        content_frame = ttk.PanedWindow(main_frame, orient="horizontal")
-        content_frame.pack(fill="both", expand=True, pady=10)
-
-        # Frame para gráfica
-        graph_frame = ttk.Labelframe(content_frame, text="Gráfica de la Función",
-                                    style="Card.TLabelframe", padding=8)
-
-        # Crear figura de matplotlib
-        fig = plt.figure(figsize=(8, 5), dpi=100)
-        ax = fig.add_subplot(111)
-
-        # Graficar función
-        x_plot = np.linspace(a - (b - a) * 0.1, b + (b - a) * 0.1, 400)
-        y_plot = [f(xi) for xi in x_plot]
-
-        ax.plot(x_plot, y_plot, 'b-', linewidth=2, label=f'f(x) = {self._convert_to_display(func_str)}')
-        ax.axhline(y=0, color='k', linestyle='-', alpha=0.7)
-        ax.axvline(x=a, color='r', linestyle='--', alpha=0.7, label=f'a = {a:.4f}')
-        ax.axvline(x=b, color='g', linestyle='--', alpha=0.7, label=f'b = {b:.4f}')
-        ax.axvline(x=raiz, color='orange', linestyle='-', alpha=0.8, label=f'Raíz ≈ {raiz:.6f}')
-        ax.grid(True, alpha=0.3)
-        ax.set_xlabel('x')
-        ax.set_ylabel('f(x)')
-        ax.set_title('Gráfica de la función y solución encontrada')
-        ax.legend()
-
-        # Canvas y toolbar interactiva
-        canvas = FigureCanvasTkAgg(fig, master=graph_frame)
-        canvas.draw()
-
-        toolbar = NavigationToolbar2Tk(canvas, graph_frame)
-        toolbar.update()
-        toolbar.pack(side="bottom", fill="x")
-
-        canvas.get_tk_widget().pack(fill="both", expand=True)
-
-        content_frame.add(graph_frame, weight=3)
-
-        # Frame para resultados
-        results_frame = ttk.Labelframe(content_frame, text="Resultados del Cálculo",
-                                       style="Card.TLabelframe", padding=8)
-
-        # Crear área de texto para resultados
-        results_text = tk.Text(results_frame, height=20, wrap="word", width=35)
-        results_text.pack(fill="both", expand=True)
-
-        # Configurar estilo del texto
-        results_text.configure(
-            background="#1E1E1E",
-            foreground="#FFFFFF",
-            font=("Cascadia Code", 10),
-            padx=12,
-            pady=12,
-            spacing1=2,
-            spacing2=1,
-            spacing3=2
-        )
-
-        # Escribir resultados
-        results_text.insert(tk.END, "RESULTADOS DEL MÉTODO DE BISECCIÓN\n")
-
-        results_text.insert(tk.END, "FUNCIÓN ANALIZADA:\n")
-        results_text.insert(tk.END, f"f(x) = {self._convert_to_display(func_str)}\n\n")
-
-        results_text.insert(tk.END, "INTERVALO INICIAL:\n")
-        results_text.insert(tk.END, f"a = {a:.8f}\n")
-        results_text.insert(tk.END, f"b = {b:.8f}\n\n")
-
-        results_text.insert(tk.END, "RESULTADO FINAL:\n")
-        results_text.insert(tk.END, "─" * 20 + "\n")
-        results_text.insert(tk.END, f"Raíz aproximada: {raiz:.10f}\n")
-        results_text.insert(tk.END, f"f(raíz) ≈ {f(raiz):.2e}\n")
-        results_text.insert(tk.END, f"Iteraciones: {len(pasos)}\n")
-
-        # Calcular error final
-        if len(pasos) > 0:
-            error_final = pasos[-1].get("error", 0)
-            if error_final == error_final:  # No es NaN
-                results_text.insert(tk.END, f"Error final: {error_final:.10f}\n")
-            else:
-                results_text.insert(tk.END, f"Error final: —\n")
-        else:
-            results_text.insert(tk.END, f"Error final: —\n")
-
-        results_text.insert(tk.END, "CONFIGURACIÓN:\n")
-        results_text.insert(tk.END, f"Tolerancia: {float(self.tol_entry.get()):.8f}\n")
-
-        results_text.config(state="disabled")
-        content_frame.add(results_frame, weight=1)
-
-
-    def _mostrar_resultados_biseccion(self, pasos, raiz, motivo):
-        """Muestra los resultados de la bisección en la tabla"""
+    def _mostrar_resultados_biseccion_new(self, pasos, raiz, motivo):
+        """Muestra los resultados de la bisección en la tabla nueva"""
         for row in pasos:
             def fmt(v):
                 try:
@@ -2751,20 +2946,80 @@ class App(tk.Tk):
 
             # Formatear error (puede ser NaN en primera iteración)
             error = row.get("error", 0)
-            error_str = "—" if (error != error) else fmt(error)
+            error_str = "—" if (error != error) or error == float('inf') else f"{error:.6f}"
 
-            self.bis_tree.insert("", "end", values=(
-                row["k"], fmt(row["a"]), fmt(row["b"]), fmt(row["c"]),
-                fmt(row["fa"]), fmt(row["fb"]), fmt(row["fc"]), error_str
+            self.bis_tree_new.insert("", "end", values=(
+                row["k"],
+                f"{row['a']:.6f}",
+                f"{row['b']:.6f}",
+                f"{row['c']:.6f}",
+                f"{row['fa']:.6f}",
+                f"{row['fb']:.6f}",
+                f"{row['fc']:.6f}",
+                error_str
             ))
 
         # Resaltar última iteración
         if pasos:
-            last_iid = self.bis_tree.get_children()[-1]
-            self.bis_tree.selection_set(last_iid)
-            self.bis_tree.focus(last_iid)
+            last_iid = self.bis_tree_new.get_children()[-1]
+            self.bis_tree_new.selection_set(last_iid)
+            self.bis_tree_new.focus(last_iid)
 
-        self._update_status("Bisección completada")
+    # Asegúrate de tener esta función de parseo en tu clase
+    def _parse_calculation(self, func_str):
+        """Convierte string a función ejecutable"""
+        import re
+        import numpy as np
+
+        calc_str = (func_str or "").strip()
+        if not calc_str:
+            return lambda x: 0
+
+        calc_str = calc_str.replace("^", "**")
+
+        # Reemplazar multiplicaciones implícitas
+        calc_str = re.sub(r'(?<=\d)(?=[a-zA-Z\(])', '*', calc_str)
+        calc_str = re.sub(r'(?<=[a-zA-Z\)])(?=\d)', '*', calc_str)
+        calc_str = re.sub(r'(?<=[a-zA-Z\)])(?=[a-zA-Z\(])', '*', calc_str)
+
+        # Funciones seguras
+        safe_globals = {
+            "sin": np.sin, "cos": np.cos, "tan": np.tan,
+            "asin": np.arcsin, "acos": np.arccos, "atan": np.arctan,
+            "sinh": np.sinh, "cosh": np.cosh, "tanh": np.tanh,
+            "exp": np.exp, "sqrt": np.sqrt, "abs": np.abs,
+            "log": np.log, "log10": np.log10, "ln": np.log,
+            "pi": np.pi, "e": np.e
+        }
+
+        try:
+            code = compile(calc_str, "<string>", "eval")
+        except Exception as e:
+            raise ValueError(f"Expresión inválida: {e}")
+
+        def f(x):
+            try:
+                return eval(code, {"__builtins__": {}}, {**safe_globals, "x": x})
+            except Exception as e:
+                raise ValueError(f"Error evaluando f({x}): {e}")
+
+        return f
+
+    def _convert_to_display(self, text):
+        """Convierte a notación matemática visual"""
+        if not text.strip():
+            return ""
+
+        display = text
+        # Reemplazar operadores
+        display = display.replace('**', '^').replace('*', '·')
+        # Reemplazar funciones
+        display = display.replace('math.', '')
+        # Multiplicaciones implícitas
+        display = re.sub(r'(\d)([a-zA-Z])', r'\1·\2', display)
+        display = re.sub(r'([a-zA-Z])(\d)', r'\1·\2', display)
+
+        return display
 
     # -------- Falsa Posicion --------
     def _tab_falsa_posicion(self):
