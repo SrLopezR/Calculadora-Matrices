@@ -195,13 +195,16 @@ class StartMenu(tk.Frame):
         self._create_widgets()
 
     def _create_widgets(self):
-        # Frame principal con scroll
-        main_frame = tk.Frame(self, bg="#1e1e1e")
-        main_frame.pack(fill="both", expand=True)
+        # Frame principal centrado
+        main_container = tk.Frame(self, bg="#1e1e1e")
+        main_container.pack(fill="both", expand=True)
+
+        # Frame para centrar el contenido
+        center_frame = tk.Frame(main_container, bg="#1e1e1e")
+        center_frame.place(relx=0.5, rely=0.5, anchor="center")
 
         # Canvas y scrollbar para contenido desplazable
-        canvas = tk.Canvas(main_frame, bg="#1e1e1e", highlightthickness=0)
-        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        canvas = tk.Canvas(center_frame, bg="#1e1e1e", highlightthickness=0, width=1200, height=950)
         scrollable_frame = ttk.Frame(canvas, style="TFrame")
 
         scrollable_frame.bind(
@@ -210,10 +213,8 @@ class StartMenu(tk.Frame):
         )
 
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
 
         canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
 
         # Título principal mejorado
         title_frame = tk.Frame(scrollable_frame, bg="#1e1e1e")
@@ -257,12 +258,12 @@ class StartMenu(tk.Frame):
 
         # Categorías de métodos con diseño mejorado
         categories = {
-            "📊 Sistemas de Ecuaciones": [
+            " Sistemas de Ecuaciones": [
                 ("Gauss-Jordan", self.app.show_gauss_jordan),
                 ("Gauss", self.app.show_gauss),
                 ("Regla de Cramer", self.app.show_cramer)
             ],
-            "🧩 Operaciones con Matrices": [
+            "Operaciones con Matrices": [
                 ("Suma", self.app.show_suma),
                 ("Multiplicación", self.app.show_multiplicacion),
                 ("Escalar × Matriz", self.app.show_escalar),
@@ -271,10 +272,10 @@ class StartMenu(tk.Frame):
                 ("Determinante", self.app.show_determinante),
                 ("Determinante (Sarrus)", self.app.show_sarrus)
             ],
-            "🔍 Análisis de Matrices": [
+            "Análisis de Matrices": [
                 ("Independencia Lineal", self.app.show_independencia)
             ],
-            "📈 Métodos Numéricos": [
+            "Métodos Numéricos": [
                 ("Bisección", self.app.show_biseccion),
                 ("Falsa Posición", self.app.show_falsa_posicion),
                 ("Newton-Raphson", self.app.show_newton_raphson),
@@ -285,7 +286,7 @@ class StartMenu(tk.Frame):
         # Crear categorías en un grid responsive
         row = 0
         col = 0
-        max_cols = 4  # Máximo 2 columnas para pantallas grandes
+        max_cols = 4
 
         for category_name, methods in categories.items():
             # Frame para cada categoría con estilo mejorado
@@ -300,21 +301,13 @@ class StartMenu(tk.Frame):
                 relief="ridge",
                 bd=2
             )
-            cat_frame.grid(
-                row=row,
-                column=col,
-                padx=15,
-                pady=15,
-                sticky="nsew",
-                ipadx=10,
-                ipady=5
-            )
+            cat_frame.grid(row=row,column=col,padx=15,pady=15,sticky="nsew",ipadx=10,ipady=5)
 
             # Configurar grid weight para expansión
             categories_frame.grid_rowconfigure(row, weight=1)
             categories_frame.grid_columnconfigure(col, weight=1)
 
-            # Botones para cada método en la categoría
+
             for method_name, command in methods:
                 btn = tk.Button(
                     cat_frame,
@@ -338,9 +331,6 @@ class StartMenu(tk.Frame):
 
             # Avanzar en el grid
             col += 1
-            if col >= max_cols:
-                col = 0
-                row += 1
 
         # Footer
         footer_frame = tk.Frame(scrollable_frame, bg="#1e1e1e")
@@ -359,15 +349,17 @@ class StartMenu(tk.Frame):
         canvas.update_idletasks()
         canvas.yview_moveto(0)
 
+        # Ajustar el tamaño del canvas para que se centre correctamente
+        canvas.configure(scrollregion=canvas.bbox("all"))
 
-# ------------------ App Modificada ------------------
+# ------------------ App  ------------------
 
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.root = None
         self.title("Soluciones de Álgebra Lineal")
-        self.geometry("1200x800")
+        self.geometry("1920x1080")
         self.minsize(1100, 700)
         configurar_estilo_oscuro(self)
 
