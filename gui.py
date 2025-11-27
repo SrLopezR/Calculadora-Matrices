@@ -3,7 +3,7 @@ import time
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from fraccion import Fraccion
-from gauss import GaussJordanEngine,GaussEngine
+from gauss import GaussJordanEngine, GaussEngine
 from matrices import (
     sumar_matrices, multiplicar_matrices,
     multiplicar_escalar_matriz, combinar_escalar_matrices,
@@ -14,10 +14,10 @@ import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import re
 
-
 TEXT_BG = "#1E1E1E"
 TEXT_FG = "#FFFFFF"
 TEXT_FONT = ("Cascadia Code", 10)
+
 
 def make_text(parent, height=12, wrap="word", font=TEXT_FONT):
     return tk.Text(parent,
@@ -27,6 +27,8 @@ def make_text(parent, height=12, wrap="word", font=TEXT_FONT):
                    font=font,
                    height=height,
                    wrap=wrap)
+
+
 def configurar_estilo_oscuro(root):
     style = ttk.Style(root)
     try:
@@ -51,15 +53,16 @@ def configurar_estilo_oscuro(root):
     style.configure("TFrame", background=fondo)
     style.configure("TLabelframe", background=fondo, foreground=texto, bordercolor=borde)
     style.configure("TLabelframe.Label", background=fondo, foreground=acento)
-    style.configure("TButton", background=fondo, foreground=texto, padding=6, font=("Times New Roman", 10), borderwidth=1 , bordercolor = borde)
+    style.configure("TButton", background=fondo, foreground=texto, padding=6, font=("Times New Roman", 10),
+                    borderwidth=1, bordercolor=borde)
     style.map("TButton",
               background=[("active", acento), ("pressed", texto)],
               foreground=[("active", "#000000")])
     # --- Treeview (tablas de matrices) ---
     style.configure("Treeview",
-                    background="#1E1E1E",      # fondo normal oscuro
+                    background="#1E1E1E",  # fondo normal oscuro
                     fieldbackground="#1E1E1E",
-                    foreground="#FFFFFF",       # texto blanco normal
+                    foreground="#FFFFFF",  # texto blanco normal
                     font=("Cascadia Code", 10))
     style.map("Treeview",
               background=[("selected", "#2563EB")],  # azul de selección
@@ -87,10 +90,12 @@ def configurar_estilo_oscuro(root):
     style.configure("TCheckbutton", background=fondo, foreground=texto, font=fuente)
     style.configure("TRadiobutton", background=fondo, foreground=texto, font=fuente)
 
+
 # ------------------ Widgets reutilizables ------------------
 
 class MatrixInput(ttk.Frame):
     """Cuadrícula de entradas para matriz (con columna b opcional)."""
+
     def __init__(self, master, rows=3, cols=3, allow_b=True, **kw):
         super().__init__(master, **kw)
         self.rows, self.cols = rows, cols
@@ -101,22 +106,22 @@ class MatrixInput(ttk.Frame):
     def _build(self):
         # Encabezados
         for j in range(self.cols):
-            ttk.Label(self, text=f"x{j+1}", anchor="center").grid(row=0, column=j, padx=4, pady=(0,6))
+            ttk.Label(self, text=f"x{j + 1}", anchor="center").grid(row=0, column=j, padx=4, pady=(0, 6))
         if self.allow_b:
             ttk.Label(self, text="|", width=2).grid(row=0, column=self.cols)
-            ttk.Label(self, text="b", anchor="center").grid(row=0, column=self.cols+1, padx=4, pady=(0,6))
+            ttk.Label(self, text="b", anchor="center").grid(row=0, column=self.cols + 1, padx=4, pady=(0, 6))
 
         for i in range(self.rows):
             fila = []
             for j in range(self.cols + (1 if self.allow_b else 0)):
                 e = ttk.Entry(self, width=9, justify="center")
                 col = j if j < self.cols else j + 1
-                e.grid(row=i+1, column=col, padx=3, pady=3)
+                e.grid(row=i + 1, column=col, padx=3, pady=3)
                 fila.append(e)
             self.entries.append(fila)
 
             if self.allow_b:
-                ttk.Label(self, text="|", width=2).grid(row=i+1, column=self.cols)
+                ttk.Label(self, text="|", width=2).grid(row=i + 1, column=self.cols)
 
     def set_size(self, rows, cols):
         for w in list(self.winfo_children()):
@@ -139,13 +144,14 @@ class MatrixInput(ttk.Frame):
                 try:
                     fila.append(Fraccion(t))
                 except Exception:
-                    raise ValueError(f"Valor inválido en fila {i+1}, columna {j+1}: '{t}'")
+                    raise ValueError(f"Valor inválido en fila {i + 1}, columna {j + 1}: '{t}'")
             M.append(fila)
         return M
 
 
 class MatrixView(ttk.Frame):
     """Vista de matriz tipo tabla con resaltado de fila pivote."""
+
     def __init__(self, master, **kw):
         super().__init__(master, **kw)
         self.tree = ttk.Treeview(self, show="headings", height=10)
@@ -159,7 +165,7 @@ class MatrixView(ttk.Frame):
             self.tree.delete(*self.tree.get_children())
             self.tree["columns"] = [f"c{j}" for j in range(cols)]
             for j in range(cols):
-                txt = f"x{j+1}" if j < cols-1 else "b"
+                txt = f"x{j + 1}" if j < cols - 1 else "b"
                 self.tree.heading(f"c{j}", text=txt)
                 self.tree.column(f"c{j}", width=80, anchor="center")
             self._cols = cols
@@ -179,28 +185,317 @@ class MatrixView(ttk.Frame):
                 pass
 
 
-# ------------------ App con pestañas (controles locales) ------------------
+# ------------------ Menú de Inicio Mejorado ------------------
+
+class StartMenu(tk.Frame):
+    def __init__(self, parent, app_instance):
+        super().__init__(parent)
+        self.app = app_instance
+        self.configure(bg="#1e1e1e")
+        self._create_widgets()
+
+    def _create_widgets(self):
+        # Frame principal con scroll
+        main_frame = tk.Frame(self, bg="#1e1e1e")
+        main_frame.pack(fill="both", expand=True)
+
+        # Canvas y scrollbar para contenido desplazable
+        canvas = tk.Canvas(main_frame, bg="#1e1e1e", highlightthickness=0)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas, style="TFrame")
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Título principal mejorado
+        title_frame = tk.Frame(scrollable_frame, bg="#1e1e1e")
+        title_frame.pack(fill="x", pady=(30, 20))
+
+        # Logo/Icono (puedes reemplazar con tu propio logo)
+        logo_label = tk.Label(
+            title_frame,
+            text="🧮",
+            font=("Arial", 48),
+            bg="#1e1e1e",
+            fg="#4fc3f7"
+        )
+        logo_label.pack(pady=(0, 10))
+
+        title = tk.Label(
+            title_frame,
+            text="Soluciones de Álgebra Lineal",
+            font=("Times New Roman", 28, "bold"),
+            bg="#1e1e1e",
+            fg="#4fc3f7"
+        )
+        title.pack(pady=(0, 5))
+
+        subtitle = tk.Label(
+            title_frame,
+            text="Selecciona un método para comenzar",
+            font=("Times New Roman", 14),
+            bg="#1e1e1e",
+            fg="#cccccc"
+        )
+        subtitle.pack(pady=5)
+
+        # Línea decorativa
+        separator = ttk.Separator(title_frame, orient="horizontal")
+        separator.pack(fill="x", padx=100, pady=15)
+
+        # Frame para las categorías
+        categories_frame = tk.Frame(scrollable_frame, bg="#1e1e1e")
+        categories_frame.pack(fill="both", expand=True, padx=20, pady=10)
+
+        # Categorías de métodos con diseño mejorado
+        categories = {
+            "📊 Sistemas de Ecuaciones": [
+                ("Gauss-Jordan", self.app.show_gauss_jordan),
+                ("Gauss", self.app.show_gauss),
+                ("Regla de Cramer", self.app.show_cramer)
+            ],
+            "🧩 Operaciones con Matrices": [
+                ("Suma", self.app.show_suma),
+                ("Multiplicación", self.app.show_multiplicacion),
+                ("Escalar × Matriz", self.app.show_escalar),
+                ("Transpuesta", self.app.show_transpuesta),
+                ("Inversa", self.app.show_inversa),
+                ("Determinante", self.app.show_determinante),
+                ("Determinante (Sarrus)", self.app.show_sarrus)
+            ],
+            "🔍 Análisis de Matrices": [
+                ("Independencia Lineal", self.app.show_independencia)
+            ],
+            "📈 Métodos Numéricos": [
+                ("Bisección", self.app.show_biseccion),
+                ("Falsa Posición", self.app.show_falsa_posicion),
+                ("Newton-Raphson", self.app.show_newton_raphson),
+                ("Secante", self.app.show_secante)
+            ]
+        }
+
+        # Crear categorías en un grid responsive
+        row = 0
+        col = 0
+        max_cols = 4  # Máximo 2 columnas para pantallas grandes
+
+        for category_name, methods in categories.items():
+            # Frame para cada categoría con estilo mejorado
+            cat_frame = tk.LabelFrame(
+                categories_frame,
+                text=category_name,
+                font=("Times New Roman", 12, "bold"),
+                bg="#2d2d2d",
+                fg="#4fc3f7",
+                padx=15,
+                pady=15,
+                relief="ridge",
+                bd=2
+            )
+            cat_frame.grid(
+                row=row,
+                column=col,
+                padx=15,
+                pady=15,
+                sticky="nsew",
+                ipadx=10,
+                ipady=5
+            )
+
+            # Configurar grid weight para expansión
+            categories_frame.grid_rowconfigure(row, weight=1)
+            categories_frame.grid_columnconfigure(col, weight=1)
+
+            # Botones para cada método en la categoría
+            for method_name, command in methods:
+                btn = tk.Button(
+                    cat_frame,
+                    text=method_name,
+                    command=command,
+                    font=("Times New Roman", 10, "bold"),
+                    bg="#2563EB",
+                    fg="white",
+                    relief="raised",
+                    bd=2,
+                    padx=25,
+                    pady=12,
+                    width=20,
+                    cursor="hand2"
+                )
+                btn.pack(pady=6, fill="x")
+
+                # Efectos hover
+                btn.bind("<Enter>", lambda e, b=btn: b.configure(bg="#1d4ed8"))
+                btn.bind("<Leave>", lambda e, b=btn: b.configure(bg="#2563EB"))
+
+            # Avanzar en el grid
+            col += 1
+            if col >= max_cols:
+                col = 0
+                row += 1
+
+        # Footer
+        footer_frame = tk.Frame(scrollable_frame, bg="#1e1e1e")
+        footer_frame.pack(fill="x", pady=30)
+
+        footer_text = tk.Label(
+            footer_frame,
+            text="Desarrollado con Python • TKinter • Álgebra Lineal",
+            font=("Times New Roman", 10),
+            bg="#1e1e1e",
+            fg="#666666"
+        )
+        footer_text.pack()
+
+        # Ajustar scroll al inicio
+        canvas.update_idletasks()
+        canvas.yview_moveto(0)
+
+
+# ------------------ App Modificada ------------------
 
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.root = None
         self.title("Soluciones de Álgebra Lineal")
-        self.geometry("1100x720")
-        self.minsize(1000, 640)
+        self.geometry("1200x800")
+        self.minsize(1100, 700)
         configurar_estilo_oscuro(self)
 
+        # Variables de control
         self.engine = None
         self.auto_running = False
         self.auto_thread = None
-        self.btn_auto = None  # se crea dentro de la pestaña Gauss
-         # Motor exclusivo para la pestaña de Gauss (el método sencillo)
+        self.btn_auto = None
         self.engine_gauss = None
         self.auto_running_gauss = False
         self.auto_thread_gauss = None
         self.btn_auto_gauss = None
 
-        self._build_ui()
+        # Crear el menú de inicio
+        self.start_menu = StartMenu(self, self)
+        self.start_menu.pack(fill="both", expand=True)
+
+        # Inicializar el notebook pero no mostrarlo aún
+        self.nb = None
+        self.current_tab = None
+
+    def show_single_tab(self, tab_name):
+        """Muestra solo la pestaña específica del método seleccionado"""
+        # Ocultar menú de inicio
+        self.start_menu.pack_forget()
+
+        # Crear notebook si no existe
+        if self.nb is None:
+            self.nb = ttk.Notebook(self)
+            self._build_tabs()
+
+            # Agregar botón de volver al inicio
+            self._add_home_button()
+
+        # Ocultar todas las pestañas primero
+        for tab in self.nb.tabs():
+            self.nb.hide(tab)
+
+        # Buscar y mostrar la pestaña específica
+        target_tab = None
+        for i, tab in enumerate(self.nb.tabs()):
+            if self.nb.tab(tab, "text") == tab_name:
+                target_tab = tab
+                break
+
+        if target_tab:
+            self.nb.select(target_tab)
+            self.current_tab = tab_name
+
+        # Mostrar notebook
+        self.nb.pack(fill="both", expand=True, padx=10, pady=(0, 8))
+        self._build_common_widgets()
+
+    def _add_home_button(self):
+        """Agrega un botón para volver al menú de inicio"""
+        home_button = ttk.Button(
+            self.nb,
+            text="🏠 Volver al Inicio",
+            command=self.show_home,
+            style="Accent.TButton"
+        )
+        # Posicionar el botón en la esquina superior derecha
+        home_button.place(relx=0.95, rely=0.02, anchor="ne")
+
+    def show_home(self):
+        """Vuelve al menú de inicio"""
+        if self.nb:
+            self.nb.pack_forget()
+        self.start_menu.pack(fill="both", expand=True)
+        self.current_tab = None
+
+    # Métodos para mostrar pestañas específicas (modificados)
+    def show_gauss_jordan(self):
+        self.show_single_tab("Gauss-Jordan")
+
+    def show_gauss(self):
+        self.show_single_tab("Gauss")
+
+    def show_suma(self):
+        self.show_single_tab("Suma")
+
+    def show_multiplicacion(self):
+        self.show_single_tab("Multiplicación")
+
+    def show_escalar(self):
+        self.show_single_tab("Escalar × Matriz")
+
+    def show_transpuesta(self):
+        self.show_single_tab("Transpuesta")
+
+    def show_independencia(self):
+        self.show_single_tab("Independencia Lineal")
+
+    def show_inversa(self):
+        self.show_single_tab("Inversa")
+
+    def show_determinante(self):
+        self.show_single_tab("Determinante")
+
+    def show_cramer(self):
+        self.show_single_tab("Regla de Cramer")
+
+    def show_sarrus(self):
+        self.show_single_tab("Determinante (Sarrus)")
+
+    def show_biseccion(self):
+        self.show_single_tab("Método de Bisección")
+
+    def show_falsa_posicion(self):
+        self.show_single_tab("Falsa Posición")
+
+    def show_newton_raphson(self):
+        self.show_single_tab("Newton-Raphson")
+
+    def show_secante(self):
+        self.show_single_tab("Secante")
+
+    def _build_common_widgets(self):
+        """Construye los widgets comunes que se muestran después del menú de inicio"""
+        # Resultado general + estado (solo si no existen)
+        if not hasattr(self, 'lbl_result'):
+            result_card = ttk.Labelframe(self, text="Resultado", style="Card.TLabelframe", padding=8)
+            result_card.pack(fill="x", padx=10, pady=(0, 8))
+            self.lbl_result = ttk.Label(result_card, text="—", style="Title.TLabel")
+            self.lbl_result.pack(anchor="w")
+
+            self.status = ttk.Label(self, text="Listo.", style="Status.TLabel")
+            self.status.pack(fill="x", side="bottom")
 
     # -------- Estilos (solo UI) --------
     def _setup_style(self):
@@ -225,19 +520,10 @@ class App(tk.Tk):
                   foreground=[("!disabled", "#ffffff")])
 
     # -------- Construcción general --------
-    def _build_ui(self):
-        # Encabezado minimal (sin controles globales de Gauss)
-        header = ttk.Frame(self, style="Toolbar.TFrame")
-        header.pack(fill="x", padx=10, pady=8)
-        ttk.Label(header, text="Soluciones de Álgebra Lineal", font=("Times New Roman", 12)).pack(side="left")
-
-        # Notebook de pestañas
-        self.nb = ttk.Notebook(self)
-        self.nb.pack(fill="both", expand=True, padx=10, pady=(0,8))
-
-        # Pestañas
+    def _build_tabs(self):
+        """Construye todas las pestañas (igual que tu código original)"""
         self._tab_gauss()
-        self._tab_gauss_simple() 
+        self._tab_gauss_simple()
         self._tab_suma()
         self._tab_mult()
         self._tab_escalar()
@@ -247,20 +533,11 @@ class App(tk.Tk):
         self._tab_determinante()
         self._tab_cramer()
         self._tab_sarrus()
-        self._tab_metodos_numericos()
+        self._tab_metodo_biseccion()
         self._tab_falsa_posicion()
         self._tab_newton_raphson()
         self._tab_secante()
 
-
-        # Resultado general + estado
-        result_card = ttk.Labelframe(self, text="Resultado", style="Card.TLabelframe", padding=8)
-        result_card.pack(fill="x", padx=10, pady=(0,8))
-        self.lbl_result = ttk.Label(result_card, text="—", style="Title.TLabel")
-        self.lbl_result.pack(anchor="w")
-
-        self.status = ttk.Label(self, text="Listo.", style="Status.TLabel")
-        self.status.pack(fill="x", side="bottom")
 
     def resize_matrix(self):
         try:
@@ -397,14 +674,19 @@ class App(tk.Tk):
         self.nb.add(tab, text="Gauss-Jordan")
 
         # Controles superiores de tamaño y utilidades
-        top = ttk.Frame(tab); top.pack(fill="x", padx=8, pady=(8,4))
-        ttk.Label(top, text="Ecuaciones (m):").pack(side="left", padx=(2,4))
+        top = ttk.Frame(tab);
+        top.pack(fill="x", padx=8, pady=(8, 4))
+        ttk.Label(top, text="Ecuaciones (m):").pack(side="left", padx=(2, 4))
         self.spin_m = tk.Spinbox(top, from_=1, to=12, width=4)
-        self.spin_m.delete(0,"end"); self.spin_m.insert(0,"3"); self.spin_m.pack(side="left")
-        ttk.Label(top, text="Incógnitas (n):").pack(side="left", padx=(10,4))
+        self.spin_m.delete(0, "end");
+        self.spin_m.insert(0, "3");
+        self.spin_m.pack(side="left")
+        ttk.Label(top, text="Incógnitas (n):").pack(side="left", padx=(10, 4))
         self.spin_n = tk.Spinbox(top, from_=1, to=12, width=4)
-        self.spin_n.delete(0,"end"); self.spin_n.insert(0,"3"); self.spin_n.pack(side="left", padx=(0,8))
-        ttk.Button(top, text="Redimensionar", command=self.resize_matrix).pack(side="left", padx=(0,6))
+        self.spin_n.delete(0, "end");
+        self.spin_n.insert(0, "3");
+        self.spin_n.pack(side="left", padx=(0, 8))
+        ttk.Button(top, text="Redimensionar", command=self.resize_matrix).pack(side="left", padx=(0, 6))
         ttk.Button(top, text="Ejemplo", command=self.load_example).pack(side="left", padx=3)
         ttk.Button(top, text="Limpiar", command=self.clear_inputs).pack(side="left", padx=3)
 
@@ -1953,7 +2235,7 @@ class App(tk.Tk):
         self._update_status("Determinante calculado correctamente con Sarrus.")
 
     # -------- Métodos numéricos (raíces por Bisección) --------
-    def _tab_metodos_numericos(self):
+    def _tab_metodo_biseccion(self):
         tab = ttk.Frame(self.nb)
         self.nb.add(tab, text="Método de Bisección")
 
@@ -2029,7 +2311,7 @@ class App(tk.Tk):
 
         ttk.Button(auto_frame, text="Limpiar",
                    command=self._limpiar_biseccion).pack(side="left", padx=6)
-        
+
         # ---- Tabla de iteraciones ----
         table_frame = ttk.LabelFrame(frame, text="Iteraciones del Método de Bisección", padding=8)
         table_frame.pack(fill="both", expand=True, pady=10)
@@ -2273,7 +2555,7 @@ class App(tk.Tk):
 
             # Graficar
             ax.plot(xs, ys, linewidth=2, label=f'f(x) = {self._convert_to_display(func_str)}')
-            ax.axhline(0, color='k', linestyle='--', alpha=0.7)
+            ax.axhline(0, color='k', linestyle='-', alpha=0.7)
             ax.axvline(a, color='r', linestyle='--', alpha=0.7, label=f'a = {a:.4f}')
             ax.axvline(b, color='g', linestyle='--', alpha=0.7, label=f'b = {b:.4f}')
             ax.set_xlabel('x')
@@ -2383,7 +2665,7 @@ class App(tk.Tk):
         y_plot = [f(xi) for xi in x_plot]
 
         ax.plot(x_plot, y_plot, 'b-', linewidth=2, label=f'f(x) = {self._convert_to_display(func_str)}')
-        ax.axhline(y=0, color='k', linestyle='--', alpha=0.7)
+        ax.axhline(y=0, color='k', linestyle='-', alpha=0.7)
         ax.axvline(x=a, color='r', linestyle='--', alpha=0.7, label=f'a = {a:.4f}')
         ax.axvline(x=b, color='g', linestyle='--', alpha=0.7, label=f'b = {b:.4f}')
         ax.axvline(x=raiz, color='orange', linestyle='-', alpha=0.8, label=f'Raíz ≈ {raiz:.6f}')
@@ -2610,7 +2892,7 @@ class App(tk.Tk):
             try: ys.append(f(x))
             except Exception: ys.append(np.nan)
         ax.plot(xs, ys, linewidth=2, label=f"f(x) = {self._convert_to_display(func_str)}")
-        ax.axhline(0, color="k", linestyle="--", alpha=0.7)
+        ax.axhline(0, color="k", linestyle="-", alpha=0.7)
         ax.axvline(a, color="r", linestyle="--", alpha=0.7, label=f"a={a:.4f}")
         ax.axvline(b, color="g", linestyle="--", alpha=0.7, label=f"b={b:.4f}")
         ax.axvline(raiz, color="c", linestyle="-.", alpha=0.9, label=f"c≈{raiz:.6f}")
@@ -2691,7 +2973,7 @@ class App(tk.Tk):
             try: ys.append(f(x))
             except Exception: ys.append(np.nan)
         ax.plot(xs, ys, linewidth=2, label=f"f(x) = {self._convert_to_display(self.fx_entry_fp.get())}")
-        ax.axhline(0, color='k', linestyle='--', alpha=0.7)
+        ax.axhline(0, color='k', linestyle='-', alpha=0.7)
         ax.axvline(a, color='r', linestyle='--', alpha=0.7, label=f'a = {a:.4f}')
         ax.axvline(b, color='g', linestyle='--', alpha=0.7, label=f'b = {b:.4f}')
         ax.set_xlabel('x'); ax.set_ylabel('f(x)')
@@ -2845,7 +3127,7 @@ class App(tk.Tk):
         ys = [f(x) for x in xs]
 
         ax.plot(xs, ys, linewidth=2, label="f(x)")
-        ax.axhline(0, color="white")
+        ax.axhline(0, color="black")
         ax.axvline(raiz, color="orange", linestyle="--", label=f"Raíz ~ {raiz:.6f}")
 
         ax.set_title("Gráfica de f(x)")
@@ -2897,7 +3179,7 @@ class App(tk.Tk):
 
             # Gráfica
             ax.plot(xs, ys, linewidth=2, label=f"f(x) = {self._convert_to_display(func_str)}")
-            ax.axhline(0, color='white', linestyle='--', alpha=0.7)
+            ax.axhline(0, color='black', linestyle='-', alpha=0.7)
             ax.grid(True, alpha=0.3)
             ax.set_title("f(x)")
             ax.set_xlabel("x")
