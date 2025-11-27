@@ -2959,7 +2959,7 @@ class App(tk.Tk):
 
     # Asegúrate de tener esta función de parseo en tu clase
     def _parse_calculation(self, func_str):
-        """Convierte string a función ejecutable"""
+        """Convierte string a función ejecutable (para las pestañas numéricas)"""
         import re
         import numpy as np
 
@@ -2967,21 +2967,46 @@ class App(tk.Tk):
         if not calc_str:
             return lambda x: 0
 
-        calc_str = calc_str.replace("^", "**")
+        # Normalizar un poco
+        calc_str = calc_str.lower()
+        calc_str = calc_str.replace("^", "**")  # permitir usar ^ como potencia
 
-        # Reemplazar multiplicaciones implícitas
+        # --- Alias en español → funciones estándar ---
+        reemplazos = {
+            "seno": "sin",
+            "sen": "sin",
+            "coseno": "cos",
+            "tangente": "tan",
+            "tg": "tan",
+            "raizcuadrada": "sqrt",
+            "raiz": "sqrt",
+        }
+        for viejo, nuevo in reemplazos.items():
+            calc_str = calc_str.replace(viejo + "(", nuevo + "(")
+
+        # --- Multiplicación implícita, pero SIN romper sin(x), cos(x), etc. ---
+
+        # 2x  → 2*x   y   2(x+1) → 2*(x+1)
         calc_str = re.sub(r'(?<=\d)(?=[a-zA-Z\(])', '*', calc_str)
-        calc_str = re.sub(r'(?<=[a-zA-Z\)])(?=\d)', '*', calc_str)
-        calc_str = re.sub(r'(?<=[a-zA-Z\)])(?=[a-zA-Z\(])', '*', calc_str)
 
-        # Funciones seguras
+        # (x+1)2 → (x+1)*2   y   (x+1)x → (x+1)*x
+        calc_str = re.sub(r'(?<=\))(?=[\dx])', '*', calc_str)
+
+        # x(x+1) → x*(x+1)   y   xsin(x) → x*sin(x)
+        # Solo pone * cuando la x NO forma parte de otra palabra (como 'exp')
+        calc_str = re.sub(r'(?<![a-zA-Z])x(?=[a-zA-Z\(])', 'x*', calc_str)
+
+        # --- Funciones y constantes permitidas ---
         safe_globals = {
             "sin": np.sin, "cos": np.cos, "tan": np.tan,
             "asin": np.arcsin, "acos": np.arccos, "atan": np.arctan,
             "sinh": np.sinh, "cosh": np.cosh, "tanh": np.tanh,
             "exp": np.exp, "sqrt": np.sqrt, "abs": np.abs,
-            "log": np.log, "log10": np.log10, "ln": np.log,
-            "pi": np.pi, "e": np.e
+            "log": np.log,         # log natural
+            "log10": np.log10,
+            "ln": np.log,          # alias para log natural
+            "pi": np.pi,
+            "e": np.e,
         }
 
         try:
@@ -2993,6 +3018,7 @@ class App(tk.Tk):
             try:
                 return eval(code, {"__builtins__": {}}, {**safe_globals, "x": x})
             except Exception as e:
+                # Este mensaje es el que estás viendo en el popup
                 raise ValueError(f"Error evaluando f({x}): {e}")
 
         return f
