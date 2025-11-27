@@ -3026,818 +3026,1946 @@ class App(tk.Tk):
         tab = ttk.Frame(self.nb)
         self.nb.add(tab, text="Falsa Posición")
 
-        frame = ttk.Frame(tab, padding=10)
-        frame.pack(fill="both", expand=True)
+        # Frame principal
+        main_frame = ttk.Frame(tab, padding=10)
+        main_frame.pack(fill="both", expand=True)
 
-        # --- Título y descripción
-        title_frame = ttk.Frame(frame)
-        title_frame.pack(fill="x", pady=(0, 10))
-        ttk.Label(title_frame, text="Método de la Falsa Posición (Regula Falso)",
-                font=("Times New Roman", 14, "bold")).pack(anchor="w")
-        ttk.Label(title_frame, text="Resuelve f(x)=0 en [a,b] usando intersecciones lineales sucesivas.",
-                font=("Times New Roman", 10)).pack(anchor="w")
+        # --- PARTE SUPERIOR: Función + Gráfica ---
+        top_paned = ttk.PanedWindow(main_frame, orient="horizontal")
+        top_paned.pack(fill="both", expand=True, pady=(0, 10))
 
-        # --- Entrada de función
-        func_frame = ttk.LabelFrame(frame, text="Función", padding=8)
-        func_frame.pack(fill="x")
-        ttk.Label(func_frame, text="f(x) =").pack(side="left", padx=(4, 6))
-        self.fx_entry_fp = ttk.Entry(func_frame, width=48)
-        self.fx_entry_fp.pack(side="left", fill="x", expand=True)
-        self.fx_entry_fp.insert(0, "x**3 - x - 2")  # ejemplo
+        # --- COLUMNA IZQUIERDA: Calculadora Avanzada ---
+        left_frame = ttk.Labelframe(top_paned, text="Calculadora Avanzada", style="Card.TLabelframe", padding=15)
 
-        # --- Parámetros
-        params = ttk.LabelFrame(frame, text="Parámetros", padding=8)
-        params.pack(fill="x", pady=10)
+        # Display de la función con LaTeX
+        func_display_frame = ttk.Frame(left_frame)
+        func_display_frame.pack(fill="x", pady=(0, 15))
 
-        ttk.Label(params, text="a =").grid(row=0, column=0, sticky="e", padx=4, pady=2)
-        self.a_entry_fp = ttk.Entry(params, width=12); self.a_entry_fp.grid(row=0, column=1, padx=4, pady=2)
-        self.a_entry_fp.insert(0, "1")
+        # Frame para el display LaTeX
+        self.latex_frame_fp = ttk.Frame(func_display_frame, height=80)
+        self.latex_frame_fp.pack(fill="x", pady=5)
+        self.latex_frame_fp.pack_propagate(False)
 
-        ttk.Label(params, text="b =").grid(row=0, column=2, sticky="e", padx=4, pady=2)
-        self.b_entry_fp = ttk.Entry(params, width=12); self.b_entry_fp.grid(row=0, column=3, padx=4, pady=2)
-        self.b_entry_fp.insert(0, "2")
+        # Inicializar display LaTeX
+        self._inicializar_latex_display_fp()
 
-        ttk.Label(params, text="Tolerancia:").grid(row=0, column=4, sticky="e", padx=4, pady=2)
-        self.tol_entry_fp = ttk.Entry(params, width=12); self.tol_entry_fp.grid(row=0, column=5, padx=4, pady=2)
+        # Entrada de función
+        input_frame = ttk.Frame(left_frame)
+        input_frame.pack(fill="x", pady=10)
+
+        ttk.Label(input_frame, text="f(x) =", font=("Arial", 12, "bold")).pack(side="left")
+        self.fx_entry_fp = ttk.Entry(
+            input_frame,
+            font=("Courier New", 12),
+            width=40
+        )
+        self.fx_entry_fp.pack(side="left", fill="x", expand=True, padx=10)
+        self.fx_entry_fp.insert(0, "x**3 - x - 2")
+        self.fx_entry_fp.bind('<KeyRelease>', self._on_function_change_fp)
+
+        # --- CALCULADORA COMPLETA ---
+        calc_frame = ttk.Frame(left_frame)
+        calc_frame.pack(fill="x", pady=10)
+
+        # Fila 1: Botones superiores
+        row0 = ttk.Frame(calc_frame)
+        row0.pack(fill="x", pady=2)
+
+        buttons_row0 = [
+            ("2nd", lambda: self._toggle_second_functions_fp(), "#666666"),
+            ("const", lambda: self._insert_constant_fp(), "#666666"),
+            ("T", lambda: self._insert_variable_fp("t"), "#666666"),
+            ("e", lambda: self._insert_constant_fp("e"), "#666666"),
+            ("[::]", lambda: self._insert_matrix_fp(), "#666666"),
+            ("x", lambda: self._insert_variable_fp("x"), "#4CAF50"),
+            ("(", lambda: self._insert_operator_fp("("), "#2196F3"),
+            (",", lambda: self._insert_operator_fp(","), "#2196F3"),
+            (")", lambda: self._insert_operator_fp(")"), "#2196F3"),
+            ("⇌", lambda: self._clear_entry_fp(), "#FF5722")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row0):
+            btn = tk.Button(
+                row0,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 2: Funciones trigonométricas
+        row1 = ttk.Frame(calc_frame)
+        row1.pack(fill="x", pady=2)
+
+        buttons_row1 = [
+            ("sin", lambda: self._insert_function_fp("sin"), "#9C27B0"),
+            ("sinh", lambda: self._insert_function_fp("sinh"), "#9C27B0"),
+            ("cot", lambda: self._insert_function_fp("cot"), "#9C27B0"),
+            ("y√x", lambda: self._insert_function_fp("yroot"), "#FF9800"),
+            ("xʸ", lambda: self._insert_operator_fp("**"), "#FF9800"),
+            ("7", lambda: self._insert_digit_fp("7"), "#37474F"),
+            ("8", lambda: self._insert_digit_fp("8"), "#37474F"),
+            ("9", lambda: self._insert_digit_fp("9"), "#37474F"),
+            ("÷", lambda: self._insert_operator_fp("/"), "#2196F3")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row1):
+            btn = tk.Button(
+                row1,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 3: Más funciones
+        row2 = ttk.Frame(calc_frame)
+        row2.pack(fill="x", pady=2)
+
+        buttons_row2 = [
+            ("cos", lambda: self._insert_function_fp("cos"), "#9C27B0"),
+            ("cosh", lambda: self._insert_function_fp("cosh"), "#9C27B0"),
+            ("sec", lambda: self._insert_function_fp("sec"), "#9C27B0"),
+            ("³√x", lambda: self._insert_function_fp("cbrt"), "#FF9800"),
+            ("x³", lambda: self._insert_power_fp("3"), "#FF9800"),
+            ("4", lambda: self._insert_digit_fp("4"), "#37474F"),
+            ("5", lambda: self._insert_digit_fp("5"), "#37474F"),
+            ("6", lambda: self._insert_digit_fp("6"), "#37474F"),
+            ("×", lambda: self._insert_operator_fp("*"), "#2196F3")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row2):
+            btn = tk.Button(
+                row2,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 4: Funciones adicionales
+        row3 = ttk.Frame(calc_frame)
+        row3.pack(fill="x", pady=2)
+
+        buttons_row3 = [
+            ("tan", lambda: self._insert_function_fp("tan"), "#9C27B0"),
+            ("tanh", lambda: self._insert_function_fp("tanh"), "#9C27B0"),
+            ("csc", lambda: self._insert_function_fp("csc"), "#9C27B0"),
+            ("√x", lambda: self._insert_function_fp("sqrt"), "#FF9800"),
+            ("x²", lambda: self._insert_power_fp("2"), "#FF9800"),
+            ("1", lambda: self._insert_digit_fp("1"), "#37474F"),
+            ("2", lambda: self._insert_digit_fp("2"), "#37474F"),
+            ("3", lambda: self._insert_digit_fp("3"), "#37474F"),
+            ("-", lambda: self._insert_operator_fp("-"), "#2196F3")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row3):
+            btn = tk.Button(
+                row3,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 5: Última fila
+        row4 = ttk.Frame(calc_frame)
+        row4.pack(fill="x", pady=2)
+
+        buttons_row4 = [
+            ("nCr", lambda: self._insert_combination_fp(), "#E91E63"),
+            ("nPr", lambda: self._insert_permutation_fp(), "#E91E63"),
+            ("%", lambda: self._insert_operator_fp("%"), "#E91E63"),
+            ("log", lambda: self._insert_function_fp("log"), "#FF9800"),
+            ("10ˣ", lambda: self._insert_function_fp("exp10"), "#FF9800"),
+            ("0", lambda: self._insert_digit_fp("0"), "#37474F"),
+            (".", lambda: self._insert_decimal_fp(), "#37474F"),
+            ("⇌", lambda: self._backspace_fp(), "#FF5722"),
+            ("+", lambda: self._insert_operator_fp("+"), "#2196F3")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row4):
+            btn = tk.Button(
+                row4,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 6: Botones de control
+        row5 = ttk.Frame(calc_frame)
+        row5.pack(fill="x", pady=2)
+
+        buttons_row5 = [
+            ("π", lambda: self._insert_constant_fp("pi"), "#607D8B"),
+            ("e", lambda: self._insert_constant_fp("e"), "#607D8B"),
+            ("∞", lambda: self._insert_constant_fp("inf"), "#607D8B"),
+            ("ln", lambda: self._insert_function_fp("ln"), "#FF9800"),
+            ("eˣ", lambda: self._insert_function_fp("exp"), "#FF9800"),
+            ("(", lambda: self._insert_operator_fp("("), "#2196F3"),
+            (")", lambda: self._insert_operator_fp(")"), "#2196F3"),
+            ("=", lambda: self._actualizar_grafica_fp(), "#4CAF50"),
+            ("C", lambda: self._clear_entry_fp(), "#F44336")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row5):
+            btn = tk.Button(
+                row5,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # --- PARÁMETROS DEL MÉTODO ---
+        params_frame = ttk.LabelFrame(left_frame, text="Parámetros del Método", padding=10)
+        params_frame.pack(fill="x", pady=15)
+
+        # Intervalo
+        interval_frame = ttk.Frame(params_frame)
+        interval_frame.pack(fill="x", pady=5)
+
+        ttk.Label(interval_frame, text="Intervalo [a, b]:", font=("Arial", 10, "bold")).pack(side="left")
+        ttk.Label(interval_frame, text="a =").pack(side="left", padx=(15, 2))
+        self.a_entry_fp = ttk.Entry(interval_frame, width=10, font=("Arial", 10))
+        self.a_entry_fp.pack(side="left", padx=2)
+        self.a_entry_fp.insert(0, "1.0")
+
+        ttk.Label(interval_frame, text="b =").pack(side="left", padx=(10, 2))
+        self.b_entry_fp = ttk.Entry(interval_frame, width=10, font=("Arial", 10))
+        self.b_entry_fp.pack(side="left", padx=2)
+        self.b_entry_fp.insert(0, "2.0")
+
+        # Tolerancia y botones
+        control_frame = ttk.Frame(params_frame)
+        control_frame.pack(fill="x", pady=10)
+
+        ttk.Label(control_frame, text="Tolerancia:", font=("Arial", 10)).pack(side="left")
+        self.tol_entry_fp = ttk.Entry(control_frame, width=10, font=("Arial", 10))
+        self.tol_entry_fp.pack(side="left", padx=5)
         self.tol_entry_fp.insert(0, "0.00001")
 
-        # --- Botones
-        auto_frame = ttk.Frame(frame)
-        auto_frame.pack(fill="x", pady=(0, 8))
-        ttk.Button(auto_frame, text="Buscar Intervalo Automático",
-                command=self._buscar_intervalo_valido_fp).pack(side="left", padx=6)
-        ttk.Button(auto_frame, text="Graficar función",
-                command=self._graficar_funcion_fp).pack(side="left", padx=6)
-        ttk.Button(auto_frame, text="Calcular Falsa Posición",
-                style="Accent.TButton", command=self._calc_falsa_posicion).pack(side="left", padx=6)
-        ttk.Button(auto_frame, text="Limpiar",
-                command=self._limpiar_fp).pack(side="left", padx=6)
+        ttk.Button(control_frame, text="🔍 Buscar Intervalo",
+                   command=self._buscar_intervalo_valido_fp).pack(side="left", padx=5)
+        ttk.Button(control_frame, text="🚀 Calcular Falsa Posición",
+                   style="Accent.TButton",
+                   command=self._calc_falsa_posicion_new).pack(side="left", padx=5)
 
-        # --- Tabla de iteraciones
-        table_frame = ttk.LabelFrame(frame, text="Iteraciones del Método de Falsa Posición", padding=8)
-        table_frame.pack(fill="both", expand=True, pady=10)
+        top_paned.add(left_frame, weight=1)
 
-        columns = ("k","a","b","c","f(a)","f(b)","f(c)","error")
-        self.fp_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=15)
-        for col, texto, w in zip(columns, ["k","a","b","c","f(a)","f(b)","f(c)","Error"],
-                                [50, 90, 90, 90, 100, 100, 100, 90]):
-            self.fp_tree.heading(col, text=texto)
-            self.fp_tree.column(col, width=w, anchor="center")
-        yscroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.fp_tree.yview)
-        self.fp_tree.configure(yscrollcommand=yscroll.set)
-        self.fp_tree.pack(side="left", fill="both", expand=True)
-        yscroll.pack(side="right", fill="y")
+        # --- COLUMNA DERECHA: Gráfica (estilo GeoGebra) ---
+        right_frame = ttk.Labelframe(top_paned, text="Gráfica Interactiva", style="Card.TLabelframe", padding=10)
 
-        # --- Estado
-        status = ttk.Frame(frame); status.pack(fill="x")
-        self.fp_status = ttk.Label(status, text="Listo para calcular", font=("Times New Roman", 9))
-        self.fp_status.pack(anchor="w")
+        # Controles de la gráfica
+        graph_controls = ttk.Frame(right_frame)
+        graph_controls.pack(fill="x", pady=(0, 10))
 
-    def _calc_falsa_posicion(self):
-        # limpiar tabla
-        for it in self.fp_tree.get_children():
-            self.fp_tree.delete(it)
+        ttk.Button(graph_controls, text="🔄 Actualizar",
+                   command=self._actualizar_grafica_fp).pack(side="left")
+        ttk.Button(graph_controls, text="➖ Zoom -",
+                   command=lambda: self._zoom_grafica_fp(1.2)).pack(side="left", padx=5)
+        ttk.Button(graph_controls, text="➕ Zoom +",
+                   command=lambda: self._zoom_grafica_fp(0.8)).pack(side="left", padx=5)
+
+        # Frame para la gráfica
+        self.graph_frame_fp = ttk.Frame(right_frame)
+        self.graph_frame_fp.pack(fill="both", expand=True)
+
+        # Inicializar gráfica
+        self._inicializar_grafica_fp()
+
+        top_paned.add(right_frame, weight=2)
+
+        # --- PARTE INFERIOR: Tabla de iteraciones ---
+        table_frame = ttk.Labelframe(main_frame, text="📊 Tabla de Iteraciones - Método de Falsa Posición",
+                                     style="Card.TLabelframe", padding=8)
+        table_frame.pack(fill="both", expand=True)
+
+        # Crear tabla
+        columns = ("k", "a", "b", "c", "f(a)", "f(b)", "f(c)", "error")
+        self.fp_tree_new = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
+
+        headings = ["Iter", "a", "b", "c", "f(a)", "f(b)", "f(c)", "Error"]
+        widths = [60, 100, 100, 100, 120, 120, 120, 100]
+
+        for col, heading, width in zip(columns, headings, widths):
+            self.fp_tree_new.heading(col, text=heading)
+            self.fp_tree_new.column(col, width=width, anchor="center")
+
+        # Scrollbar para la tabla
+        scrollbar_table = ttk.Scrollbar(table_frame, orient="vertical", command=self.fp_tree_new.yview)
+        self.fp_tree_new.configure(yscrollcommand=scrollbar_table.set)
+
+        self.fp_tree_new.pack(side="left", fill="both", expand=True)
+        scrollbar_table.pack(side="right", fill="y")
+
+        # Estado
+        self.fp_status_new = ttk.Label(main_frame,
+                                       text="🟢 Listo para calcular - Ingresa una función y parámetros")
+        self.fp_status_new.pack(anchor="w", pady=5)
+
+        # Inicializar gráfica después de crear todos los componentes
+        self.after(100, self._actualizar_grafica_fp)
+
+    def _inicializar_latex_display_fp(self):
+        """Inicializa el display LaTeX para Falsa Posición"""
         try:
-            func_str = self.fx_entry_fp.get().strip()
-            if not func_str:
-                raise ValueError("Ingresa una expresión para f(x).")
+            # Crear figura para LaTeX
+            self.fig_latex_fp = plt.figure(figsize=(8, 1), dpi=100)
+            self.ax_latex_fp = self.fig_latex_fp.add_subplot(111)
+            self.ax_latex_fp.axis('off')
+
+            # Canvas para LaTeX
+            self.canvas_latex_fp = FigureCanvasTkAgg(self.fig_latex_fp, master=self.latex_frame_fp)
+            self.canvas_latex_fp.get_tk_widget().pack(fill="both", expand=True)
+
+            # Mostrar función inicial
+            self._actualizar_latex_display_fp("x^3 - x - 2")
+
+        except Exception as e:
+            print(f"Error inicializando LaTeX Falsa Posición: {e}")
+
+    def _actualizar_latex_display_fp(self, func_text):
+        """Actualiza el display LaTeX con la función en Falsa Posición"""
+        try:
+            self.ax_latex_fp.clear()
+            self.ax_latex_fp.axis('off')
+
+            # Convertir a formato LaTeX
+            latex_text = self._convert_to_latex(func_text)
+
+            # Renderizar LaTeX
+            self.ax_latex_fp.text(0.5, 0.5, f"${latex_text}$",
+                                  fontsize=16, ha='center', va='center',
+                                  transform=self.ax_latex_fp.transAxes)
+
+            self.canvas_latex_fp.draw()
+
+        except Exception as e:
+            print(f"Error actualizando LaTeX Falsa Posición: {e}")
+
+    def _on_function_change_fp(self, event=None):
+        """Actualiza el display LaTeX cuando cambia la función en Falsa Posición"""
+        try:
+            raw_text = self.fx_entry_fp.get()
+            self._actualizar_latex_display_fp(raw_text)
+        except Exception as e:
+            print(f"Error actualizando LaTeX Falsa Posición: {e}")
+            try:
+                self._actualizar_latex_display_fp("")
+            except:
+                pass
+
+    # --- FUNCIONES DE LA CALCULADORA PARA FALSA POSICIÓN ---
+    def _insert_digit_fp(self, digit):
+        """Inserta un dígito en Falsa Posición"""
+        self.fx_entry_fp.insert(tk.END, digit)
+        self._on_function_change_fp()
+
+    def _insert_operator_fp(self, op):
+        """Inserta un operador en Falsa Posición"""
+        self.fx_entry_fp.insert(tk.END, op)
+        self._on_function_change_fp()
+
+    def _insert_function_fp(self, func):
+        """Inserta una función en Falsa Posición"""
+        if func in ["sin", "cos", "tan", "sinh", "cosh", "tanh", "cot", "sec", "csc", "log", "ln", "sqrt", "cbrt"]:
+            self.fx_entry_fp.insert(tk.END, f"{func}(")
+        elif func == "exp":
+            self.fx_entry_fp.insert(tk.END, "exp(")
+        elif func == "exp10":
+            self.fx_entry_fp.insert(tk.END, "10**")
+        elif func == "yroot":
+            self.fx_entry_fp.insert(tk.END, "yroot(")
+        self._on_function_change_fp()
+
+    def _insert_power_fp(self, power):
+        """Inserta una potencia en Falsa Posición"""
+        self.fx_entry_fp.insert(tk.END, f"**{power}")
+        self._on_function_change_fp()
+
+    def _insert_constant_fp(self, const="pi"):
+        """Inserta una constante en Falsa Posición"""
+        if const == "pi":
+            self.fx_entry_fp.insert(tk.END, "pi")
+        elif const == "e":
+            self.fx_entry_fp.insert(tk.END, "e")
+        elif const == "inf":
+            self.fx_entry_fp.insert(tk.END, "inf")
+        self._on_function_change_fp()
+
+    def _insert_variable_fp(self, var):
+        """Inserta una variable en Falsa Posición"""
+        self.fx_entry_fp.insert(tk.END, var)
+        self._on_function_change_fp()
+
+    def _insert_decimal_fp(self):
+        """Inserta punto decimal en Falsa Posición"""
+        self.fx_entry_fp.insert(tk.END, ".")
+        self._on_function_change_fp()
+
+    def _insert_combination_fp(self):
+        """Inserta combinación nCr en Falsa Posición"""
+        self.fx_entry_fp.insert(tk.END, "nCr(")
+        self._on_function_change_fp()
+
+    def _insert_permutation_fp(self):
+        """Inserta permutación nPr en Falsa Posición"""
+        self.fx_entry_fp.insert(tk.END, "nPr(")
+        self._on_function_change_fp()
+
+    def _insert_matrix_fp(self):
+        """Inserta matriz en Falsa Posición"""
+        self.fx_entry_fp.insert(tk.END, "matrix(")
+        self._on_function_change_fp()
+
+    def _clear_entry_fp(self):
+        """Limpia la entrada en Falsa Posición"""
+        self.fx_entry_fp.delete(0, tk.END)
+        self._on_function_change_fp()
+
+    def _backspace_fp(self):
+        """Elimina el último carácter en Falsa Posición"""
+        current = self.fx_entry_fp.get()
+        if current:
+            self.fx_entry_fp.delete(0, tk.END)
+            self.fx_entry_fp.insert(0, current[:-1])
+        self._on_function_change_fp()
+
+    def _toggle_second_functions_fp(self):
+        """Alterna funciones secundarias en Falsa Posición"""
+        messagebox.showinfo("2nd", "Funciones secundarias activadas")
+
+    def _inicializar_grafica_fp(self):
+        """Inicializa la gráfica estilo GeoGebra para Falsa Posición"""
+        if hasattr(self, 'fig_fp'):
+            return
+
+        self.fig_fp = plt.figure(figsize=(6, 4), dpi=100)
+        self.ax_fp = self.fig_fp.add_subplot(111)
+
+        # Estilo GeoGebra
+        self.ax_fp.set_facecolor('#F5F5F5')
+        self.fig_fp.patch.set_facecolor('#FFFFFF')
+        self.ax_fp.grid(True, color='gray', linestyle='--', alpha=0.7)
+        self.ax_fp.axhline(y=0, color='k', linewidth=1)
+        self.ax_fp.axvline(x=0, color='k', linewidth=1)
+        self.ax_fp.set_xlabel('x', fontsize=12)
+        self.ax_fp.set_ylabel('f(x)', fontsize=12)
+        self.ax_fp.set_title('Gráfica de la función', fontsize=14, pad=20)
+
+        # Canvas
+        self.canvas_fp = FigureCanvasTkAgg(self.fig_fp, master=self.graph_frame_fp)
+        self.canvas_fp.draw()
+        self.canvas_fp.get_tk_widget().pack(fill="both", expand=True)
+
+        # Toolbar
+        self.toolbar_fp = NavigationToolbar2Tk(self.canvas_fp, self.graph_frame_fp)
+        self.toolbar_fp.update()
+        self.toolbar_fp.pack(side="bottom", fill="x")
+
+    def _actualizar_grafica_fp(self):
+        """Actualiza la gráfica con la función actual en Falsa Posición"""
+        try:
+            func_str = self.fx_entry_fp.get()
+            if not func_str.strip():
+                return
+
             f = self._parse_calculation(func_str)
-            a = float(self.a_entry_fp.get()); b = float(self.b_entry_fp.get())
-            tol_txt = (self.tol_entry_fp.get() or "").strip()
-            tol = float(tol_txt) if tol_txt not in ("",) else 1e-6
+
+            # Limpiar gráfica
+            self.ax_fp.clear()
+
+            # Obtener intervalo
+            try:
+                a = float(self.a_entry_fp.get())
+                b = float(self.b_entry_fp.get())
+                if a >= b:
+                    a, b = -5, 5
+            except:
+                a, b = -5, 5
+
+            # Calcular puntos
+            x_vals = np.linspace(a - 1, b + 1, 400)
+            y_vals = []
+            for x in x_vals:
+                try:
+                    y_vals.append(f(x))
+                except:
+                    y_vals.append(np.nan)
+
+            # Graficar
+            self.ax_fp.plot(x_vals, y_vals, 'b-', linewidth=2,
+                            label=f'f(x) = {self._convert_to_display(func_str)}')
+            self.ax_fp.axhline(y=0, color='k', linestyle='-', alpha=0.5)
+
+            # Marcar intervalo si es válido
+            try:
+                fa = f(a)
+                fb = f(b)
+                self.ax_fp.axvline(x=a, color='r', linestyle='--', alpha=0.7, label=f'a = {a:.2f}')
+                self.ax_fp.axvline(x=b, color='g', linestyle='--', alpha=0.7, label=f'b = {b:.2f}')
+                self.ax_fp.plot(a, fa, 'ro', markersize=6)
+                self.ax_fp.plot(b, fb, 'go', markersize=6)
+            except:
+                pass
+
+            # Restaurar estilo
+            self.ax_fp.set_facecolor('#F5F5F5')
+            self.ax_fp.grid(True, color='gray', linestyle='--', alpha=0.7)
+            self.ax_fp.axhline(y=0, color='k', linewidth=1)
+            self.ax_fp.axvline(x=0, color='k', linewidth=1)
+            self.ax_fp.set_xlabel('x', fontsize=12)
+            self.ax_fp.set_ylabel('f(x)', fontsize=12)
+            self.ax_fp.set_title('Gráfica de la función', fontsize=14, pad=20)
+            self.ax_fp.legend()
+
+            self.canvas_fp.draw()
+
+        except Exception as e:
+            print(f"Error al graficar Falsa Posición: {e}")
+
+    def _zoom_grafica_fp(self, factor):
+        """Aplica zoom a la gráfica en Falsa Posición"""
+        try:
+            xlim = self.ax_fp.get_xlim()
+            ylim = self.ax_fp.get_ylim()
+
+            x_center = (xlim[0] + xlim[1]) / 2
+            y_center = (ylim[0] + ylim[1]) / 2
+
+            x_range = (xlim[1] - xlim[0]) * factor
+            y_range = (ylim[1] - ylim[0]) * factor
+
+            self.ax_fp.set_xlim(x_center - x_range / 2, x_center + x_range / 2)
+            self.ax_fp.set_ylim(y_center - y_range / 2, y_center + y_range / 2)
+
+            self.canvas_fp.draw()
+        except:
+            pass
+
+    def _buscar_intervalo_valido_fp(self):
+        """Busca automáticamente un intervalo válido para Falsa Posición"""
+        try:
+            func_str = self.fx_entry_fp.get()
+            f = self._parse_calculation(func_str)
+
+            from numericos import encontrar_intervalo_automatico
+            a, b, mensaje = encontrar_intervalo_automatico(f)
+
+            self.a_entry_fp.delete(0, tk.END)
+            self.a_entry_fp.insert(0, f"{a:.4f}")
+            self.b_entry_fp.delete(0, tk.END)
+            self.b_entry_fp.insert(0, f"{b:.4f}")
+
+            self._actualizar_grafica_fp()
+            self.fp_status_new.config(text="Intervalo encontrado automáticamente")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo encontrar intervalo: {str(e)}")
+
+    def _calc_falsa_posicion_new(self):
+        """Calcula Falsa Posición con las nuevas entradas"""
+        # Limpiar tabla
+        for item in self.fp_tree_new.get_children():
+            self.fp_tree_new.delete(item)
+
+        try:
+            func_str = self.fx_entry_fp.get()
+            f = self._parse_calculation(func_str)
+            a = float(self.a_entry_fp.get())
+            b = float(self.b_entry_fp.get())
+            tol = float(self.tol_entry_fp.get())
+
             if a >= b:
-                raise ValueError("Debe cumplirse a < b.")
+                raise ValueError("Debe cumplirse: a < b")
+
+            # Verificar cambio de signo
+            fa = f(a)
+            fb = f(b)
+            if fa * fb > 0:
+                raise ValueError("La función debe tener signos opuestos en a y b (f(a)*f(b) < 0)")
+
             from numericos import falsa_posicion
             raiz, pasos, motivo = falsa_posicion(f, a, b, tol=tol, max_iter=100, usar_error="absoluto")
-            # tabla
-            for p in pasos:
-                self.fp_tree.insert("", "end", values=(
-                    p["k"], f"{p['a']:.6f}", f"{p['b']:.6f}", f"{p['c']:.6f}",
-                    f"{p['fa']:.6f}", f"{p['fb']:.6f}", f"{p['fc']:.6f}",
-                    f"{p['error']:.6f}" if p["error"] != float('inf') else "—"
-                ))
-            # popup
-            self._mostrar_resultados_popup_fp(func_str, f, a, b, raiz, pasos, motivo)
-            self.fp_status.config(text=f"Falsa Posición completada - {len(pasos)} iteraciones")
-            if hasattr(self, "lbl_result"):
-                self.lbl_result.config(text=f"Raíz ≈ {raiz:.8f} ({motivo})")
+
+            # Mostrar en tabla
+            self._mostrar_resultados_fp_new(pasos, raiz, motivo)
+
+            # Actualizar gráfica con la raíz encontrada
+            self._actualizar_grafica_con_raiz_fp(raiz, f)
+
+            self.fp_status_new.config(
+                text=f"Falsa Posición completada - {len(pasos)} iteraciones - Raíz ≈ {raiz:.8f}")
+
         except Exception as e:
             messagebox.showerror("Error en Falsa Posición", str(e))
 
-    def _mostrar_resultados_popup_fp(self, func_str, f, a, b, raiz, pasos, motivo):
-        popup = tk.Toplevel(self)
-        popup.title("Resultados - Método de Falsa Posición")
-        popup.geometry("1020x600"); popup.minsize(800, 600)
-        popup.transient(self); popup.grab_set()
-        configurar_estilo_oscuro(popup)
-
-        main = ttk.Frame(popup, padding=10); main.pack(fill="both", expand=True)
-        ttk.Label(main, text="Resultados del Método de Falsa Posición",
-                font=("Times New Roman", 13, "bold")).pack(anchor="w", pady=(0,6))
-
-        top = ttk.Frame(main); top.pack(fill="both", expand=True)
-
-        # --- Gráfica
-        fig = plt.figure(figsize=(6.2, 3.6), dpi=100)
-        ax = fig.add_subplot(111)
-        margen = 0.1 * (b - a if b != a else 1.0)
-        xs = np.linspace(a - margen, b + margen, 600)
-        ys = []
-        for x in xs:
-            try: ys.append(f(x))
-            except Exception: ys.append(np.nan)
-        ax.plot(xs, ys, linewidth=2, label=f"f(x) = {self._convert_to_display(func_str)}")
-        ax.axhline(0, color="k", linestyle="-", alpha=0.7)
-        ax.axvline(a, color="r", linestyle="--", alpha=0.7, label=f"a={a:.4f}")
-        ax.axvline(b, color="g", linestyle="--", alpha=0.7, label=f"b={b:.4f}")
-        ax.axvline(raiz, color="c", linestyle="-.", alpha=0.9, label=f"c≈{raiz:.6f}")
-        ax.set_xlabel("x"); ax.set_ylabel("f(x)")
-        ax.set_title("Vista de f(x) e iterado final")
-        ax.grid(True, alpha=0.3); ax.legend(loc="best")
-
-        left = ttk.Labelframe(top, text="Gráfica", padding=6)
-        left.pack(side="left", fill="both", expand=True, padx=(0,8))
-
-        canvas = FigureCanvasTkAgg(fig, master=left)
-        canvas.draw()
-
-        toolbar = NavigationToolbar2Tk(canvas, left)
-        toolbar.update()
-        toolbar.pack(side="bottom", fill="x")
-
-        canvas.get_tk_widget().pack(fill="both", expand=True)
-
-        # --- Resumen y tabla compacta
-        right = ttk.Labelframe(top, text="Resumen", padding=8)
-        right.pack(side="left", fill="both", expand=True)
-
-        resumen_txt = (
-            f"f(x) = {self._convert_to_display(func_str)}\n"
-            f"Intervalo: [{a:.6f}, {b:.6f}]\n"
-            f"Raíz ≈ {raiz:.10f}\n"
-            f"Iteraciones: {len(pasos)}\n"
-            f"Motivo: {motivo}"
-        )
-        ttk.Label(right, text=resumen_txt, justify="left").pack(anchor="w")
-
-    def _buscar_intervalo_valido_fp(self):
+    def _actualizar_grafica_con_raiz_fp(self, raiz, f):
+        """Actualiza la gráfica marcando la raíz encontrada en Falsa Posición"""
         try:
-            func_str = self.fx_entry_fp.get().strip()
-            if not func_str:
-                raise ValueError("Ingresa una expresión para f(x).")
-            f = self._parse_calculation(func_str)
-            from numericos import encontrar_intervalo_automatico
-            a, b, info = encontrar_intervalo_automatico(f)
-            self.a_entry_fp.delete(0, tk.END); self.a_entry_fp.insert(0, f"{a:.6f}")
-            self.b_entry_fp.delete(0, tk.END); self.b_entry_fp.insert(0, f"{b:.6f}")
-            self.fp_status.config(text=info)
+            # Limpiar y volver a graficar
+            self._actualizar_grafica_fp()
+            # Marcar la raíz
+            self.ax_fp.plot(raiz, f(raiz), 'ro', markersize=10, markerfacecolor='red',
+                            markeredgecolor='darkred', markeredgewidth=2,
+                            label=f'Raíz ≈ {raiz:.6f}')
+            self.ax_fp.legend()
+            self.canvas_fp.draw()
         except Exception as e:
-            messagebox.showerror("Búsqueda de intervalo", str(e))
+            print(f"Error al actualizar gráfica con raíz Falsa Posición: {e}")
 
-    def _graficar_funcion_fp(self):
-        try:
-            func_str = self.fx_entry_fp.get().strip()
-            if not func_str:
-                raise ValueError("Ingresa una expresión para f(x).")
-            f = self._parse_calculation(func_str)
-            a = -5; b = 5
-        except Exception:
-            # fallback: intenta encontrar intervalo y reintenta
-            f = self._parse_calculation(self.fx_entry_fp.get().strip())
-            from numericos import encontrar_intervalo_automatico
-            a, b, _ = encontrar_intervalo_automatico(f)
-            self.a_entry_fp.delete(0, tk.END); self.a_entry_fp.insert(0, f"{a:.6f}")
-            self.b_entry_fp.delete(0, tk.END); self.b_entry_fp.insert(0, f"{b:.6f}")
+    def _mostrar_resultados_fp_new(self, pasos, raiz, motivo):
+        """Muestra los resultados de la Falsa Posición en la tabla nueva"""
+        for row in pasos:
+            # Formatear error (puede ser NaN en primera iteración)
+            error = row.get("error", 0)
+            error_str = "—" if (error != error) or error == float('inf') else f"{error:.6f}"
 
-        if a > b: a, b = b, a
-        if a == b: a -= 1.0; b += 1.0
+            self.fp_tree_new.insert("", "end", values=(
+                row["k"],
+                f"{row['a']:.6f}",
+                f"{row['b']:.6f}",
+                f"{row['c']:.6f}",
+                f"{row['fa']:.6f}",
+                f"{row['fb']:.6f}",
+                f"{row['fc']:.6f}",
+                error_str
+            ))
 
-        popup = tk.Toplevel(self)
-        popup.title("Vista previa de f(x)")
-        popup.geometry("900x550"); popup.minsize(700, 450)
-        popup.transient(self); popup.grab_set()
-        configurar_estilo_oscuro(popup)
-
-        container = ttk.Frame(popup, padding=10); container.pack(fill="both", expand=True)
-
-        fig = plt.figure(figsize=(8, 4.8), dpi=100); ax = fig.add_subplot(111)
-        margen = 0.1 * (b - a if b != a else 1.0)
-        xs = np.linspace(a - margen, b + margen, 600)
-        ys = []
-        for x in xs:
-            try: ys.append(f(x))
-            except Exception: ys.append(np.nan)
-        ax.plot(xs, ys, linewidth=2, label=f"f(x) = {self._convert_to_display(self.fx_entry_fp.get())}")
-        ax.axhline(0, color='k', linestyle='-', alpha=0.7)
-        ax.axvline(a, color='r', linestyle='--', alpha=0.7, label=f'a = {a:.4f}')
-        ax.axvline(b, color='g', linestyle='--', alpha=0.7, label=f'b = {b:.4f}')
-        ax.set_xlabel('x'); ax.set_ylabel('f(x)')
-        ax.set_title('Vista previa de f(x) en el intervalo'); ax.grid(True, alpha=0.3); ax.legend()
-
-        canvas = FigureCanvasTkAgg(fig, master=container)
-        canvas.draw()
-
-        toolbar = NavigationToolbar2Tk(canvas, container)
-        toolbar.update()
-        toolbar.pack(side="bottom", fill="x")
-
-        canvas.get_tk_widget().pack(fill="both", expand=True)
-
-    def _limpiar_fp(self):
-        self.fx_entry_fp.delete(0, tk.END)
-        self.a_entry_fp.delete(0, tk.END)
-        self.b_entry_fp.delete(0, tk.END)
-        self.tol_entry_fp.delete(0, tk.END)
-        for it in self.fp_tree.get_children():
-            self.fp_tree.delete(it)
-        self.fp_status.config(text="Listo para calcular")
+        # Resaltar última iteración
+        if pasos:
+            last_iid = self.fp_tree_new.get_children()[-1]
+            self.fp_tree_new.selection_set(last_iid)
+            self.fp_tree_new.focus(last_iid)
 
     #----------Newton Raphson----------
     def _tab_newton_raphson(self):
         tab = ttk.Frame(self.nb)
         self.nb.add(tab, text="Newton-Raphson")
 
-        frame = ttk.Frame(tab, padding=10)
-        frame.pack(fill="both", expand=True)
+        # Frame principal
+        main_frame = ttk.Frame(tab, padding=10)
+        main_frame.pack(fill="both", expand=True)
 
-        # --- Título
-        ttk.Label(frame, text="Método de Newton–Raphson",
-                  font=("Times New Roman", 14, "bold")).pack(anchor="w", pady=(0,10))
+        # --- PARTE SUPERIOR: Función + Gráfica ---
+        top_paned = ttk.PanedWindow(main_frame, orient="horizontal")
+        top_paned.pack(fill="both", expand=True, pady=(0, 10))
 
-        # --- Función
-        func_frame = ttk.LabelFrame(frame, text="Función f(x)", padding=8)
-        func_frame.pack(fill="x", pady=5)
+        # --- COLUMNA IZQUIERDA: Calculadora Avanzada ---
+        left_frame = ttk.Labelframe(top_paned, text="Calculadora Avanzada", style="Card.TLabelframe", padding=15)
 
-        ttk.Label(func_frame, text="f(x) =").pack(side="left")
-        self.fx_entry_nr = ttk.Entry(func_frame, width=48)
-        self.fx_entry_nr.pack(side="left", padx=5, fill="x", expand=True)
+        # Display de la función con LaTeX
+        func_display_frame = ttk.Frame(left_frame)
+        func_display_frame.pack(fill="x", pady=(0, 15))
+
+        # Frame para el display LaTeX
+        self.latex_frame_nr = ttk.Frame(func_display_frame, height=80)
+        self.latex_frame_nr.pack(fill="x", pady=5)
+        self.latex_frame_nr.pack_propagate(False)
+
+        # Inicializar display LaTeX
+        self._inicializar_latex_display_nr()
+
+        # Entrada de función
+        input_frame = ttk.Frame(left_frame)
+        input_frame.pack(fill="x", pady=10)
+
+        ttk.Label(input_frame, text="f(x) =", font=("Arial", 12, "bold")).pack(side="left")
+        self.fx_entry_nr = ttk.Entry(
+            input_frame,
+            font=("Courier New", 12),
+            width=40
+        )
+        self.fx_entry_nr.pack(side="left", fill="x", expand=True, padx=10)
         self.fx_entry_nr.insert(0, "x**3 - x - 2")
+        self.fx_entry_nr.bind('<KeyRelease>', self._on_function_change_nr)
 
-        # --- Parámetros
-        params = ttk.LabelFrame(frame, text="Parámetros", padding=8)
-        params.pack(fill="x", pady=8)
+        # --- CALCULADORA COMPLETA ---
+        calc_frame = ttk.Frame(left_frame)
+        calc_frame.pack(fill="x", pady=10)
 
-        ttk.Label(params, text="x₀ =").grid(row=0, column=0, padx=4, pady=2)
-        self.x0_entry_nr = ttk.Entry(params, width=12)
-        self.x0_entry_nr.grid(row=0, column=1, padx=4)
+        # Fila 1: Botones superiores
+        row0 = ttk.Frame(calc_frame)
+        row0.pack(fill="x", pady=2)
+
+        buttons_row0 = [
+            ("2nd", lambda: self._toggle_second_functions_nr(), "#666666"),
+            ("const", lambda: self._insert_constant_nr(), "#666666"),
+            ("T", lambda: self._insert_variable_nr("t"), "#666666"),
+            ("e", lambda: self._insert_constant_nr("e"), "#666666"),
+            ("[::]", lambda: self._insert_matrix_nr(), "#666666"),
+            ("x", lambda: self._insert_variable_nr("x"), "#4CAF50"),
+            ("(", lambda: self._insert_operator_nr("("), "#2196F3"),
+            (",", lambda: self._insert_operator_nr(","), "#2196F3"),
+            (")", lambda: self._insert_operator_nr(")"), "#2196F3"),
+            ("⇌", lambda: self._clear_entry_nr(), "#FF5722")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row0):
+            btn = tk.Button(
+                row0,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 2: Funciones trigonométricas
+        row1 = ttk.Frame(calc_frame)
+        row1.pack(fill="x", pady=2)
+
+        buttons_row1 = [
+            ("sin", lambda: self._insert_function_nr("sin"), "#9C27B0"),
+            ("sinh", lambda: self._insert_function_nr("sinh"), "#9C27B0"),
+            ("cot", lambda: self._insert_function_nr("cot"), "#9C27B0"),
+            ("y√x", lambda: self._insert_function_nr("yroot"), "#FF9800"),
+            ("xʸ", lambda: self._insert_operator_nr("**"), "#FF9800"),
+            ("7", lambda: self._insert_digit_nr("7"), "#37474F"),
+            ("8", lambda: self._insert_digit_nr("8"), "#37474F"),
+            ("9", lambda: self._insert_digit_nr("9"), "#37474F"),
+            ("÷", lambda: self._insert_operator_nr("/"), "#2196F3")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row1):
+            btn = tk.Button(
+                row1,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 3: Más funciones
+        row2 = ttk.Frame(calc_frame)
+        row2.pack(fill="x", pady=2)
+
+        buttons_row2 = [
+            ("cos", lambda: self._insert_function_nr("cos"), "#9C27B0"),
+            ("cosh", lambda: self._insert_function_nr("cosh"), "#9C27B0"),
+            ("sec", lambda: self._insert_function_nr("sec"), "#9C27B0"),
+            ("³√x", lambda: self._insert_function_nr("cbrt"), "#FF9800"),
+            ("x³", lambda: self._insert_power_nr("3"), "#FF9800"),
+            ("4", lambda: self._insert_digit_nr("4"), "#37474F"),
+            ("5", lambda: self._insert_digit_nr("5"), "#37474F"),
+            ("6", lambda: self._insert_digit_nr("6"), "#37474F"),
+            ("×", lambda: self._insert_operator_nr("*"), "#2196F3")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row2):
+            btn = tk.Button(
+                row2,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 4: Funciones adicionales
+        row3 = ttk.Frame(calc_frame)
+        row3.pack(fill="x", pady=2)
+
+        buttons_row3 = [
+            ("tan", lambda: self._insert_function_nr("tan"), "#9C27B0"),
+            ("tanh", lambda: self._insert_function_nr("tanh"), "#9C27B0"),
+            ("csc", lambda: self._insert_function_nr("csc"), "#9C27B0"),
+            ("√x", lambda: self._insert_function_nr("sqrt"), "#FF9800"),
+            ("x²", lambda: self._insert_power_nr("2"), "#FF9800"),
+            ("1", lambda: self._insert_digit_nr("1"), "#37474F"),
+            ("2", lambda: self._insert_digit_nr("2"), "#37474F"),
+            ("3", lambda: self._insert_digit_nr("3"), "#37474F"),
+            ("-", lambda: self._insert_operator_nr("-"), "#2196F3")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row3):
+            btn = tk.Button(
+                row3,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 5: Última fila
+        row4 = ttk.Frame(calc_frame)
+        row4.pack(fill="x", pady=2)
+
+        buttons_row4 = [
+            ("nCr", lambda: self._insert_combination_nr(), "#E91E63"),
+            ("nPr", lambda: self._insert_permutation_nr(), "#E91E63"),
+            ("%", lambda: self._insert_operator_nr("%"), "#E91E63"),
+            ("log", lambda: self._insert_function_nr("log"), "#FF9800"),
+            ("10ˣ", lambda: self._insert_function_nr("exp10"), "#FF9800"),
+            ("0", lambda: self._insert_digit_nr("0"), "#37474F"),
+            (".", lambda: self._insert_decimal_nr(), "#37474F"),
+            ("⇌", lambda: self._backspace_nr(), "#FF5722"),
+            ("+", lambda: self._insert_operator_nr("+"), "#2196F3")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row4):
+            btn = tk.Button(
+                row4,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 6: Botones de control
+        row5 = ttk.Frame(calc_frame)
+        row5.pack(fill="x", pady=2)
+
+        buttons_row5 = [
+            ("π", lambda: self._insert_constant_nr("pi"), "#607D8B"),
+            ("e", lambda: self._insert_constant_nr("e"), "#607D8B"),
+            ("∞", lambda: self._insert_constant_nr("inf"), "#607D8B"),
+            ("ln", lambda: self._insert_function_nr("ln"), "#FF9800"),
+            ("eˣ", lambda: self._insert_function_nr("exp"), "#FF9800"),
+            ("(", lambda: self._insert_operator_nr("("), "#2196F3"),
+            (")", lambda: self._insert_operator_nr(")"), "#2196F3"),
+            ("=", lambda: self._actualizar_grafica_nr(), "#4CAF50"),
+            ("C", lambda: self._clear_entry_nr(), "#F44336")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row5):
+            btn = tk.Button(
+                row5,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # --- PARÁMETROS DEL MÉTODO ---
+        params_frame = ttk.LabelFrame(left_frame, text="Parámetros del Método", padding=10)
+        params_frame.pack(fill="x", pady=15)
+
+        # Punto inicial y tolerancia
+        point_frame = ttk.Frame(params_frame)
+        point_frame.pack(fill="x", pady=5)
+
+        ttk.Label(point_frame, text="Punto inicial x₀:", font=("Arial", 10, "bold")).pack(side="left")
+        ttk.Label(point_frame, text="x₀ =").pack(side="left", padx=(15, 2))
+        self.x0_entry_nr = ttk.Entry(point_frame, width=10, font=("Arial", 10))
+        self.x0_entry_nr.pack(side="left", padx=2)
         self.x0_entry_nr.insert(0, "1.5")
 
-        ttk.Label(params, text="Tolerancia:").grid(row=0, column=2, padx=4)
-        self.tol_entry_nr = ttk.Entry(params, width=12)
-        self.tol_entry_nr.grid(row=0, column=3, padx=4)
+        # Tolerancia y botones
+        control_frame = ttk.Frame(params_frame)
+        control_frame.pack(fill="x", pady=10)
+
+        ttk.Label(control_frame, text="Tolerancia:", font=("Arial", 10)).pack(side="left")
+        self.tol_entry_nr = ttk.Entry(control_frame, width=10, font=("Arial", 10))
+        self.tol_entry_nr.pack(side="left", padx=5)
         self.tol_entry_nr.insert(0, "0.00001")
 
-        # --- Botones
-        btns = ttk.Frame(frame)
-        btns.pack(fill="x", pady=8)
-
-        ttk.Button(btns, text="Graficar función",
-                   command=self._graficar_funcion_nr).pack(side="left", padx=6)
-
-        ttk.Button(btns, text="Calcular Newton-Raphson",
+        ttk.Button(control_frame, text="🔍 Buscar Punto Inicial",
+                   command=self._buscar_punto_inicial_nr).pack(side="left", padx=5)
+        ttk.Button(control_frame, text="🚀 Calcular Newton-Raphson",
                    style="Accent.TButton",
-                   command=self._calc_newton_raphson).pack(side="left", padx=6)
+                   command=self._calc_newton_raphson_new).pack(side="left", padx=5)
 
-        ttk.Button(btns, text="Limpiar",
-                   command=self._limpiar_nr).pack(side="left", padx=6)
+        top_paned.add(left_frame, weight=1)
 
-        # --- Tabla
-        table_frame = ttk.LabelFrame(frame, text="Iteraciones", padding=8)
-        table_frame.pack(fill="both", expand=True, pady=10)
+        # --- COLUMNA DERECHA: Gráfica (estilo GeoGebra) ---
+        right_frame = ttk.Labelframe(top_paned, text="Gráfica Interactiva", style="Card.TLabelframe", padding=10)
 
-        columns = ("k", "x", "fx", "dfx", "error")
-        self.nr_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=14)
+        # Controles de la gráfica
+        graph_controls = ttk.Frame(right_frame)
+        graph_controls.pack(fill="x", pady=(0, 10))
 
-        for col, text, w in zip(columns,
-                                ["k", "xₖ", "f(xₖ)", "f’(xₖ)", "error"],
-                                [50,120,120,120,100]):
-            self.nr_tree.heading(col, text=text)
-            self.nr_tree.column(col, width=w, anchor="center")
+        ttk.Button(graph_controls, text="🔄 Actualizar",
+                   command=self._actualizar_grafica_nr).pack(side="left")
+        ttk.Button(graph_controls, text="➖ Zoom -",
+                   command=lambda: self._zoom_grafica_nr(1.2)).pack(side="left", padx=5)
+        ttk.Button(graph_controls, text="➕ Zoom +",
+                   command=lambda: self._zoom_grafica_nr(0.8)).pack(side="left", padx=5)
 
-        yscroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.nr_tree.yview)
-        self.nr_tree.configure(yscrollcommand=yscroll.set)
+        # Frame para la gráfica
+        self.graph_frame_nr = ttk.Frame(right_frame)
+        self.graph_frame_nr.pack(fill="both", expand=True)
 
-        self.nr_tree.pack(side="left", fill="both", expand=True)
-        yscroll.pack(side="right", fill="y")
+        # Inicializar gráfica
+        self._inicializar_grafica_nr()
 
-        self.nr_status = ttk.Label(frame, text="Listo para calcular")
-        self.nr_status.pack(anchor="w")
+        top_paned.add(right_frame, weight=2)
 
-    def _calc_newton_raphson(self):
-        for i in self.nr_tree.get_children():
-            self.nr_tree.delete(i)
+        # --- PARTE INFERIOR: Tabla de iteraciones ---
+        table_frame = ttk.Labelframe(main_frame, text="📊 Tabla de Iteraciones - Método de Newton-Raphson",
+                                     style="Card.TLabelframe", padding=8)
+        table_frame.pack(fill="both", expand=True)
 
+        # Crear tabla
+        columns = ("k", "x", "f(x)", "f'(x)", "error")
+        self.nr_tree_new = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
+
+        headings = ["Iter", "xₖ", "f(xₖ)", "f'(xₖ)", "Error"]
+        widths = [60, 120, 120, 120, 100]
+
+        for col, heading, width in zip(columns, headings, widths):
+            self.nr_tree_new.heading(col, text=heading)
+            self.nr_tree_new.column(col, width=width, anchor="center")
+
+        # Scrollbar para la tabla
+        scrollbar_table = ttk.Scrollbar(table_frame, orient="vertical", command=self.nr_tree_new.yview)
+        self.nr_tree_new.configure(yscrollcommand=scrollbar_table.set)
+
+        self.nr_tree_new.pack(side="left", fill="both", expand=True)
+        scrollbar_table.pack(side="right", fill="y")
+
+        # Estado
+        self.nr_status_new = ttk.Label(main_frame,
+                                       text="🟢 Listo para calcular - Ingresa una función y parámetros")
+        self.nr_status_new.pack(anchor="w", pady=5)
+
+        # Inicializar gráfica después de crear todos los componentes
+        self.after(100, self._actualizar_grafica_nr)
+
+    def _inicializar_latex_display_nr(self):
+        """Inicializa el display LaTeX para Newton-Raphson"""
         try:
-            func_str = self.fx_entry_nr.get().strip()
+            # Crear figura para LaTeX
+            self.fig_latex_nr = plt.figure(figsize=(8, 1), dpi=100)
+            self.ax_latex_nr = self.fig_latex_nr.add_subplot(111)
+            self.ax_latex_nr.axis('off')
+
+            # Canvas para LaTeX
+            self.canvas_latex_nr = FigureCanvasTkAgg(self.fig_latex_nr, master=self.latex_frame_nr)
+            self.canvas_latex_nr.get_tk_widget().pack(fill="both", expand=True)
+
+            # Mostrar función inicial
+            self._actualizar_latex_display_nr("x^3 - x - 2")
+
+        except Exception as e:
+            print(f"Error inicializando LaTeX Newton-Raphson: {e}")
+
+    def _actualizar_latex_display_nr(self, func_text):
+        """Actualiza el display LaTeX con la función en Newton-Raphson"""
+        try:
+            self.ax_latex_nr.clear()
+            self.ax_latex_nr.axis('off')
+
+            # Convertir a formato LaTeX
+            latex_text = self._convert_to_latex(func_text)
+
+            # Renderizar LaTeX
+            self.ax_latex_nr.text(0.5, 0.5, f"${latex_text}$",
+                                  fontsize=16, ha='center', va='center',
+                                  transform=self.ax_latex_nr.transAxes)
+
+            self.canvas_latex_nr.draw()
+
+        except Exception as e:
+            print(f"Error actualizando LaTeX Newton-Raphson: {e}")
+
+    def _on_function_change_nr(self, event=None):
+        """Actualiza el display LaTeX cuando cambia la función en Newton-Raphson"""
+        try:
+            raw_text = self.fx_entry_nr.get()
+            self._actualizar_latex_display_nr(raw_text)
+        except Exception as e:
+            print(f"Error actualizando LaTeX Newton-Raphson: {e}")
+            try:
+                self._actualizar_latex_display_nr("")
+            except:
+                pass
+
+    # --- FUNCIONES DE LA CALCULADORA PARA NEWTON-RAPHSON ---
+    def _insert_digit_nr(self, digit):
+        """Inserta un dígito en Newton-Raphson"""
+        self.fx_entry_nr.insert(tk.END, digit)
+        self._on_function_change_nr()
+
+    def _insert_operator_nr(self, op):
+        """Inserta un operador en Newton-Raphson"""
+        self.fx_entry_nr.insert(tk.END, op)
+        self._on_function_change_nr()
+
+    def _insert_function_nr(self, func):
+        """Inserta una función en Newton-Raphson"""
+        if func in ["sin", "cos", "tan", "sinh", "cosh", "tanh", "cot", "sec", "csc", "log", "ln", "sqrt", "cbrt"]:
+            self.fx_entry_nr.insert(tk.END, f"{func}(")
+        elif func == "exp":
+            self.fx_entry_nr.insert(tk.END, "exp(")
+        elif func == "exp10":
+            self.fx_entry_nr.insert(tk.END, "10**")
+        elif func == "yroot":
+            self.fx_entry_nr.insert(tk.END, "yroot(")
+        self._on_function_change_nr()
+
+    def _insert_power_nr(self, power):
+        """Inserta una potencia en Newton-Raphson"""
+        self.fx_entry_nr.insert(tk.END, f"**{power}")
+        self._on_function_change_nr()
+
+    def _insert_constant_nr(self, const="pi"):
+        """Inserta una constante en Newton-Raphson"""
+        if const == "pi":
+            self.fx_entry_nr.insert(tk.END, "pi")
+        elif const == "e":
+            self.fx_entry_nr.insert(tk.END, "e")
+        elif const == "inf":
+            self.fx_entry_nr.insert(tk.END, "inf")
+        self._on_function_change_nr()
+
+    def _insert_variable_nr(self, var):
+        """Inserta una variable en Newton-Raphson"""
+        self.fx_entry_nr.insert(tk.END, var)
+        self._on_function_change_nr()
+
+    def _insert_decimal_nr(self):
+        """Inserta punto decimal en Newton-Raphson"""
+        self.fx_entry_nr.insert(tk.END, ".")
+        self._on_function_change_nr()
+
+    def _insert_combination_nr(self):
+        """Inserta combinación nCr en Newton-Raphson"""
+        self.fx_entry_nr.insert(tk.END, "nCr(")
+        self._on_function_change_nr()
+
+    def _insert_permutation_nr(self):
+        """Inserta permutación nPr en Newton-Raphson"""
+        self.fx_entry_nr.insert(tk.END, "nPr(")
+        self._on_function_change_nr()
+
+    def _insert_matrix_nr(self):
+        """Inserta matriz en Newton-Raphson"""
+        self.fx_entry_nr.insert(tk.END, "matrix(")
+        self._on_function_change_nr()
+
+    def _clear_entry_nr(self):
+        """Limpia la entrada en Newton-Raphson"""
+        self.fx_entry_nr.delete(0, tk.END)
+        self._on_function_change_nr()
+
+    def _backspace_nr(self):
+        """Elimina el último carácter en Newton-Raphson"""
+        current = self.fx_entry_nr.get()
+        if current:
+            self.fx_entry_nr.delete(0, tk.END)
+            self.fx_entry_nr.insert(0, current[:-1])
+        self._on_function_change_nr()
+
+    def _toggle_second_functions_nr(self):
+        """Alterna funciones secundarias en Newton-Raphson"""
+        messagebox.showinfo("2nd", "Funciones secundarias activadas")
+
+    def _inicializar_grafica_nr(self):
+        """Inicializa la gráfica estilo GeoGebra para Newton-Raphson"""
+        if hasattr(self, 'fig_nr'):
+            return
+
+        self.fig_nr = plt.figure(figsize=(6, 4), dpi=100)
+        self.ax_nr = self.fig_nr.add_subplot(111)
+
+        # Estilo GeoGebra
+        self.ax_nr.set_facecolor('#F5F5F5')
+        self.fig_nr.patch.set_facecolor('#FFFFFF')
+        self.ax_nr.grid(True, color='gray', linestyle='--', alpha=0.7)
+        self.ax_nr.axhline(y=0, color='k', linewidth=1)
+        self.ax_nr.axvline(x=0, color='k', linewidth=1)
+        self.ax_nr.set_xlabel('x', fontsize=12)
+        self.ax_nr.set_ylabel('f(x)', fontsize=12)
+        self.ax_nr.set_title('Gráfica de la función', fontsize=14, pad=20)
+
+        # Canvas
+        self.canvas_nr = FigureCanvasTkAgg(self.fig_nr, master=self.graph_frame_nr)
+        self.canvas_nr.draw()
+        self.canvas_nr.get_tk_widget().pack(fill="both", expand=True)
+
+        # Toolbar
+        self.toolbar_nr = NavigationToolbar2Tk(self.canvas_nr, self.graph_frame_nr)
+        self.toolbar_nr.update()
+        self.toolbar_nr.pack(side="bottom", fill="x")
+
+    def _actualizar_grafica_nr(self):
+        """Actualiza la gráfica con la función actual en Newton-Raphson"""
+        try:
+            func_str = self.fx_entry_nr.get()
+            if not func_str.strip():
+                return
+
             f = self._parse_calculation(func_str)
 
+            # Limpiar gráfica
+            self.ax_nr.clear()
+
+            # Obtener rango basado en x0
+            try:
+                x0 = float(self.x0_entry_nr.get())
+                x_min, x_max = x0 - 3, x0 + 3
+            except:
+                x_min, x_max = -5, 5
+
+            # Calcular puntos
+            x_vals = np.linspace(x_min, x_max, 400)
+            y_vals = []
+            for x in x_vals:
+                try:
+                    y_vals.append(f(x))
+                except:
+                    y_vals.append(np.nan)
+
+            # Graficar
+            self.ax_nr.plot(x_vals, y_vals, 'b-', linewidth=2,
+                            label=f'f(x) = {self._convert_to_display(func_str)}')
+            self.ax_nr.axhline(y=0, color='k', linestyle='-', alpha=0.5)
+
+            # Marcar punto inicial si es válido
+            try:
+                x0 = float(self.x0_entry_nr.get())
+                fx0 = f(x0)
+                self.ax_nr.axvline(x=x0, color='r', linestyle='--', alpha=0.7, label=f'x₀ = {x0:.2f}')
+                self.ax_nr.plot(x0, fx0, 'ro', markersize=6)
+            except:
+                pass
+
+            # Restaurar estilo
+            self.ax_nr.set_facecolor('#F5F5F5')
+            self.ax_nr.grid(True, color='gray', linestyle='--', alpha=0.7)
+            self.ax_nr.axhline(y=0, color='k', linewidth=1)
+            self.ax_nr.axvline(x=0, color='k', linewidth=1)
+            self.ax_nr.set_xlabel('x', fontsize=12)
+            self.ax_nr.set_ylabel('f(x)', fontsize=12)
+            self.ax_nr.set_title('Gráfica de la función', fontsize=14, pad=20)
+            self.ax_nr.legend()
+
+            self.canvas_nr.draw()
+
+        except Exception as e:
+            print(f"Error al graficar Newton-Raphson: {e}")
+
+    def _zoom_grafica_nr(self, factor):
+        """Aplica zoom a la gráfica en Newton-Raphson"""
+        try:
+            xlim = self.ax_nr.get_xlim()
+            ylim = self.ax_nr.get_ylim()
+
+            x_center = (xlim[0] + xlim[1]) / 2
+            y_center = (ylim[0] + ylim[1]) / 2
+
+            x_range = (xlim[1] - xlim[0]) * factor
+            y_range = (ylim[1] - ylim[0]) * factor
+
+            self.ax_nr.set_xlim(x_center - x_range / 2, x_center + x_range / 2)
+            self.ax_nr.set_ylim(y_center - y_range / 2, y_center + y_range / 2)
+
+            self.canvas_nr.draw()
+        except:
+            pass
+
+    def _buscar_punto_inicial_nr(self):
+        """Busca automáticamente un punto inicial para Newton-Raphson"""
+        try:
+            func_str = self.fx_entry_nr.get()
+            f = self._parse_calculation(func_str)
+
+            # Buscar un punto donde la función cruce el eje x
+            from numericos import encontrar_intervalo_automatico
+            a, b, mensaje = encontrar_intervalo_automatico(f)
+
+            # Usar el punto medio como x0 inicial
+            x0 = (a + b) / 2
+
+            self.x0_entry_nr.delete(0, tk.END)
+            self.x0_entry_nr.insert(0, f"{x0:.4f}")
+
+            self._actualizar_grafica_nr()
+            self.nr_status_new.config(text="Punto inicial encontrado automáticamente")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo encontrar punto inicial: {str(e)}")
+
+    def _calc_newton_raphson_new(self):
+        """Calcula Newton-Raphson con las nuevas entradas"""
+        # Limpiar tabla
+        for item in self.nr_tree_new.get_children():
+            self.nr_tree_new.delete(item)
+
+        try:
+            func_str = self.fx_entry_nr.get()
+            f = self._parse_calculation(func_str)
             x0 = float(self.x0_entry_nr.get())
             tol = float(self.tol_entry_nr.get())
 
             from numericos import newton_raphson
             raiz, pasos, motivo = newton_raphson(f, x0, tol=tol)
 
-            # Mostrar tabla
-            for p in pasos:
-                self.nr_tree.insert("", "end", values=(
-                    p["k"],
-                    f"{p['x']:.8f}",
-                    f"{p['fx']:.8f}",
-                    f"{p['dfx']:.8f}",
-                    f"{p['error']:.8f}" if p["error"] != float('inf') else "—"
-                ))
+            # Mostrar en tabla
+            self._mostrar_resultados_nr_new(pasos, raiz, motivo)
 
-            self.nr_status.config(text=f"Raíz ≈ {raiz:.8f} ({motivo})")
+            # Actualizar gráfica con la raíz encontrada
+            self._actualizar_grafica_con_raiz_nr(raiz, f)
 
-            self._mostrar_popup_nr(func_str, f, x0, raiz, pasos, motivo)
-
-            if hasattr(self, "lbl_result"):
-                self.lbl_result.config(text=f"Raíz ≈ {raiz:.8f}")
+            self.nr_status_new.config(
+                text=f"Newton-Raphson completado - {len(pasos)} iteraciones - Raíz ≈ {raiz:.8f}")
 
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            messagebox.showerror("Error en Newton-Raphson", str(e))
 
-    def _mostrar_popup_nr(self, func_str, f, x0, raiz, pasos, motivo):
-        popup = tk.Toplevel(self)
-        popup.title("Resultados - Newton-Raphson")
-        popup.geometry("950x600")
-        popup.transient(self)
-        popup.grab_set()
-        configurar_estilo_oscuro(popup)
-
-        main = ttk.Frame(popup, padding=10)
-        main.pack(fill="both", expand=True)
-
-        ttk.Label(main, text="Newton-Raphson", font=("Times New Roman", 14, "bold")).pack(anchor="w")
-
-        paned = ttk.Panedwindow(main, orient="horizontal")
-        paned.pack(fill="both", expand=True)
-
-        # --- Gráfica
-        fig = plt.figure(figsize=(6,4), dpi=100)
-        ax = fig.add_subplot(111)
-
-        import numpy as np
-        xs = np.linspace(raiz - 5, raiz + 5, 400)
-        ys = [f(x) for x in xs]
-
-        ax.plot(xs, ys, linewidth=2, label="f(x)")
-        ax.axhline(0, color="black")
-        ax.axvline(raiz, color="orange", linestyle="--", label=f"Raíz ~ {raiz:.6f}")
-
-        ax.set_title("Gráfica de f(x)")
-        ax.grid(True, alpha=0.3)
-        ax.legend()
-
-        graph = ttk.Labelframe(paned, text="Gráfica", padding=5)
-        canvas = FigureCanvasTkAgg(fig, master=graph)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill="both", expand=True)
-        paned.add(graph, weight=3)
-
-        # --- Resultados
-        resumen = ttk.Labelframe(paned, text="Resumen", padding=10)
-        txt = tk.Text(resumen, height=20, wrap="word", background="#1E1E1E",
-                      foreground="white", font=("Cascadia Code", 10))
-        txt.insert(tk.END,
-            f"f(x) = {self._convert_to_display(func_str)}\n"
-            f"x0 = {x0}\n\n"
-            f"Raíz aproximada:\n  {raiz:.10f}\n\n"
-            f"Iteraciones: {len(pasos)}\n"
-            f"Motivo de paro:\n  {motivo}\n"
-        )
-        txt.config(state="disabled")
-        txt.pack(fill="both", expand=True)
-        paned.add(resumen, weight=1)
-
-    def _graficar_funcion_nr(self):
+    def _actualizar_grafica_con_raiz_nr(self, raiz, f):
+        """Actualiza la gráfica marcando la raíz encontrada en Newton-Raphson"""
         try:
-            func_str = self.fx_entry_nr.get().strip()
-            if not func_str:
-                raise ValueError("Ingresa una expresión para f(x).")
-
-            f = self._parse_calculation(func_str)
-
-            # Ventana
-            popup = tk.Toplevel(self)
-            popup.title("Vista previa de f(x)")
-            popup.geometry("900x550")
-            configurar_estilo_oscuro(popup)
-
-            # Figura y eje
-            fig = plt.figure(figsize=(8, 4.8), dpi=100)
-            ax = fig.add_subplot(111)
-
-            # Dominio para graficar
-            xs = np.linspace(-10, 10, 500)
-            ys = [f(x) for x in xs]
-
-            # Gráfica
-            ax.plot(xs, ys, linewidth=2, label=f"f(x) = {self._convert_to_display(func_str)}")
-            ax.axhline(0, color='black', linestyle='-', alpha=0.7)
-            ax.grid(True, alpha=0.3)
-            ax.set_title("f(x)")
-            ax.set_xlabel("x")
-            ax.set_ylabel("f(x)")
-            ax.legend()
-
-            # Canvas + toolbar interactiva
-            canvas = FigureCanvasTkAgg(fig, master=popup)
-            canvas.draw()
-
-            # Barra de herramientas (zoom, pan, reset, guardar)
-            toolbar = NavigationToolbar2Tk(canvas, popup)
-            toolbar.update()
-            toolbar.pack(side="bottom", fill="x")
-
-            # Colocar la gráfica
-            canvas.get_tk_widget().pack(fill="both", expand=True)
-
+            # Limpiar y volver a graficar
+            self._actualizar_grafica_nr()
+            # Marcar la raíz
+            self.ax_nr.plot(raiz, f(raiz), 'ro', markersize=10, markerfacecolor='red',
+                            markeredgecolor='darkred', markeredgewidth=2,
+                            label=f'Raíz ≈ {raiz:.6f}')
+            self.ax_nr.legend()
+            self.canvas_nr.draw()
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            print(f"Error al actualizar gráfica con raíz Newton-Raphson: {e}")
 
-    def _limpiar_nr(self):
-        self.fx_entry_nr.delete(0, tk.END)
-        self.x0_entry_nr.delete(0, tk.END)
-        self.tol_entry_nr.delete(0, tk.END)
-        for row in self.nr_tree.get_children():
-            self.nr_tree.delete(row)
-        self.nr_status.config(text="Listo para calcular")
+    def _mostrar_resultados_nr_new(self, pasos, raiz, motivo):
+        """Muestra los resultados de Newton-Raphson en la tabla nueva"""
+        for row in pasos:
+            # Formatear error (puede ser NaN en primera iteración)
+            error = row.get("error", 0)
+            error_str = "—" if (error != error) or error == float('inf') else f"{error:.6f}"
+
+            self.nr_tree_new.insert("", "end", values=(
+                row["k"],
+                f"{row['x']:.6f}",
+                f"{row['fx']:.6f}",
+                f"{row['dfx']:.6f}",
+                error_str
+            ))
+
+        # Resaltar última iteración
+        if pasos:
+            last_iid = self.nr_tree_new.get_children()[-1]
+            self.nr_tree_new.selection_set(last_iid)
+            self.nr_tree_new.focus(last_iid)
 
     #----------Secante---------#
     def _tab_secante(self):
         tab = ttk.Frame(self.nb)
         self.nb.add(tab, text="Secante")
 
-        frame = ttk.Frame(tab, padding=10)
-        frame.pack(fill="both", expand=True)
+        # Frame principal
+        main_frame = ttk.Frame(tab, padding=10)
+        main_frame.pack(fill="both", expand=True)
 
-        # --- Título y descripción
-        title_frame = ttk.Frame(frame)
-        title_frame.pack(fill="x", pady=(0, 10))
-        ttk.Label(title_frame, text="Método de la Secante",
-                  font=("Times New Roman", 14, "bold")).pack(anchor="w")
-        ttk.Label(title_frame, text="Aproxima raíces de f(x) = 0 usando dos puntos iniciales x₀ y x₁.",
-                  font=("Times New Roman", 10)).pack(anchor="w")
+        # --- PARTE SUPERIOR: Función + Gráfica ---
+        top_paned = ttk.PanedWindow(main_frame, orient="horizontal")
+        top_paned.pack(fill="both", expand=True, pady=(0, 10))
 
-        # --- Entrada de datos
-        input_card = ttk.LabelFrame(frame, text="Datos de entrada", padding=8)
-        input_card.pack(fill="x", pady=5)
+        # --- COLUMNA IZQUIERDA: Calculadora Avanzada ---
+        left_frame = ttk.Labelframe(top_paned, text="Calculadora Avanzada", style="Card.TLabelframe", padding=15)
 
-        # f(x)
-        row0 = ttk.Frame(input_card)
-        row0.pack(fill="x", pady=2)
-        ttk.Label(row0, text="f(x) =").pack(side="left")
-        self.fx_entry_sec = ttk.Entry(row0, width=40)
-        self.fx_entry_sec.pack(side="left", padx=5)
-        self.fx_entry_sec.bind("<KeyRelease>", self._on_function_change_sec)
+        # Display de la función con LaTeX
+        func_display_frame = ttk.Frame(left_frame)
+        func_display_frame.pack(fill="x", pady=(0, 15))
 
-        self.fx_display_sec = ttk.Label(
-            input_card,
-            text="f(x) = —",
-            font=("Times New Roman", 9, "italic")
+        # Frame para el display LaTeX
+        self.latex_frame_sec = ttk.Frame(func_display_frame, height=80)
+        self.latex_frame_sec.pack(fill="x", pady=5)
+        self.latex_frame_sec.pack_propagate(False)
+
+        # Inicializar display LaTeX
+        self._inicializar_latex_display_sec()
+
+        # Entrada de función
+        input_frame = ttk.Frame(left_frame)
+        input_frame.pack(fill="x", pady=10)
+
+        ttk.Label(input_frame, text="f(x) =", font=("Arial", 12, "bold")).pack(side="left")
+        self.fx_entry_sec = ttk.Entry(
+            input_frame,
+            font=("Courier New", 12),
+            width=40
         )
-        self.fx_display_sec.pack(anchor="w", pady=(2, 4))
+        self.fx_entry_sec.pack(side="left", fill="x", expand=True, padx=10)
+        self.fx_entry_sec.insert(0, "x**3 - x - 2")
+        self.fx_entry_sec.bind('<KeyRelease>', self._on_function_change_sec)
 
-        # x0, x1 y tolerancia
-        row1 = ttk.Frame(input_card)
+        # --- CALCULADORA COMPLETA ---
+        calc_frame = ttk.Frame(left_frame)
+        calc_frame.pack(fill="x", pady=10)
+
+        # Fila 1: Botones superiores
+        row0 = ttk.Frame(calc_frame)
+        row0.pack(fill="x", pady=2)
+
+        buttons_row0 = [
+            ("2nd", lambda: self._toggle_second_functions_sec(), "#666666"),
+            ("const", lambda: self._insert_constant_sec(), "#666666"),
+            ("T", lambda: self._insert_variable_sec("t"), "#666666"),
+            ("e", lambda: self._insert_constant_sec("e"), "#666666"),
+            ("[::]", lambda: self._insert_matrix_sec(), "#666666"),
+            ("x", lambda: self._insert_variable_sec("x"), "#4CAF50"),
+            ("(", lambda: self._insert_operator_sec("("), "#2196F3"),
+            (",", lambda: self._insert_operator_sec(","), "#2196F3"),
+            (")", lambda: self._insert_operator_sec(")"), "#2196F3"),
+            ("⇌", lambda: self._clear_entry_sec(), "#FF5722")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row0):
+            btn = tk.Button(
+                row0,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 2: Funciones trigonométricas
+        row1 = ttk.Frame(calc_frame)
         row1.pack(fill="x", pady=2)
 
-        ttk.Label(row1, text="x₀:").pack(side="left")
-        self.x0_entry_sec = ttk.Entry(row1, width=10, justify="center")
-        self.x0_entry_sec.pack(side="left", padx=4)
+        buttons_row1 = [
+            ("sin", lambda: self._insert_function_sec("sin"), "#9C27B0"),
+            ("sinh", lambda: self._insert_function_sec("sinh"), "#9C27B0"),
+            ("cot", lambda: self._insert_function_sec("cot"), "#9C27B0"),
+            ("y√x", lambda: self._insert_function_sec("yroot"), "#FF9800"),
+            ("xʸ", lambda: self._insert_operator_sec("**"), "#FF9800"),
+            ("7", lambda: self._insert_digit_sec("7"), "#37474F"),
+            ("8", lambda: self._insert_digit_sec("8"), "#37474F"),
+            ("9", lambda: self._insert_digit_sec("9"), "#37474F"),
+            ("÷", lambda: self._insert_operator_sec("/"), "#2196F3")
+        ]
 
-        ttk.Label(row1, text="x₁:").pack(side="left")
-        self.x1_entry_sec = ttk.Entry(row1, width=10, justify="center")
-        self.x1_entry_sec.pack(side="left", padx=4)
+        for i, (text, command, color) in enumerate(buttons_row1):
+            btn = tk.Button(
+                row1,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
 
-        ttk.Label(row1, text="Tolerancia:").pack(side="left", padx=(10, 0))
-        self.tol_entry_sec = ttk.Entry(row1, width=10, justify="center")
-        self.tol_entry_sec.insert(0, "1e-6")
-        self.tol_entry_sec.pack(side="left", padx=4)
+        # Fila 3: Más funciones
+        row2 = ttk.Frame(calc_frame)
+        row2.pack(fill="x", pady=2)
 
-        # --- Botones
-        btn_row = ttk.Frame(input_card)
-        btn_row.pack(fill="x", pady=(8, 2))
+        buttons_row2 = [
+            ("cos", lambda: self._insert_function_sec("cos"), "#9C27B0"),
+            ("cosh", lambda: self._insert_function_sec("cosh"), "#9C27B0"),
+            ("sec", lambda: self._insert_function_sec("sec"), "#9C27B0"),
+            ("³√x", lambda: self._insert_function_sec("cbrt"), "#FF9800"),
+            ("x³", lambda: self._insert_power_sec("3"), "#FF9800"),
+            ("4", lambda: self._insert_digit_sec("4"), "#37474F"),
+            ("5", lambda: self._insert_digit_sec("5"), "#37474F"),
+            ("6", lambda: self._insert_digit_sec("6"), "#37474F"),
+            ("×", lambda: self._insert_operator_sec("*"), "#2196F3")
+        ]
 
-        ttk.Button(btn_row, text="Calcular raíz",
+        for i, (text, command, color) in enumerate(buttons_row2):
+            btn = tk.Button(
+                row2,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 4: Funciones adicionales
+        row3 = ttk.Frame(calc_frame)
+        row3.pack(fill="x", pady=2)
+
+        buttons_row3 = [
+            ("tan", lambda: self._insert_function_sec("tan"), "#9C27B0"),
+            ("tanh", lambda: self._insert_function_sec("tanh"), "#9C27B0"),
+            ("csc", lambda: self._insert_function_sec("csc"), "#9C27B0"),
+            ("√x", lambda: self._insert_function_sec("sqrt"), "#FF9800"),
+            ("x²", lambda: self._insert_power_sec("2"), "#FF9800"),
+            ("1", lambda: self._insert_digit_sec("1"), "#37474F"),
+            ("2", lambda: self._insert_digit_sec("2"), "#37474F"),
+            ("3", lambda: self._insert_digit_sec("3"), "#37474F"),
+            ("-", lambda: self._insert_operator_sec("-"), "#2196F3")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row3):
+            btn = tk.Button(
+                row3,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 5: Última fila
+        row4 = ttk.Frame(calc_frame)
+        row4.pack(fill="x", pady=2)
+
+        buttons_row4 = [
+            ("nCr", lambda: self._insert_combination_sec(), "#E91E63"),
+            ("nPr", lambda: self._insert_permutation_sec(), "#E91E63"),
+            ("%", lambda: self._insert_operator_sec("%"), "#E91E63"),
+            ("log", lambda: self._insert_function_sec("log"), "#FF9800"),
+            ("10ˣ", lambda: self._insert_function_sec("exp10"), "#FF9800"),
+            ("0", lambda: self._insert_digit_sec("0"), "#37474F"),
+            (".", lambda: self._insert_decimal_sec(), "#37474F"),
+            ("⇌", lambda: self._backspace_sec(), "#FF5722"),
+            ("+", lambda: self._insert_operator_sec("+"), "#2196F3")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row4):
+            btn = tk.Button(
+                row4,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # Fila 6: Botones de control
+        row5 = ttk.Frame(calc_frame)
+        row5.pack(fill="x", pady=2)
+
+        buttons_row5 = [
+            ("π", lambda: self._insert_constant_sec("pi"), "#607D8B"),
+            ("e", lambda: self._insert_constant_sec("e"), "#607D8B"),
+            ("∞", lambda: self._insert_constant_sec("inf"), "#607D8B"),
+            ("ln", lambda: self._insert_function_sec("ln"), "#FF9800"),
+            ("eˣ", lambda: self._insert_function_sec("exp"), "#FF9800"),
+            ("(", lambda: self._insert_operator_sec("("), "#2196F3"),
+            (")", lambda: self._insert_operator_sec(")"), "#2196F3"),
+            ("=", lambda: self._actualizar_grafica_sec(), "#4CAF50"),
+            ("C", lambda: self._clear_entry_sec(), "#F44336")
+        ]
+
+        for i, (text, command, color) in enumerate(buttons_row5):
+            btn = tk.Button(
+                row5,
+                text=text,
+                font=("Arial", 10, "bold"),
+                bg=color,
+                fg="white",
+                relief="raised",
+                bd=2,
+                width=4,
+                height=1,
+                command=command
+            )
+            btn.pack(side="left", padx=1, pady=1)
+
+        # --- PARÁMETROS DEL MÉTODO ---
+        params_frame = ttk.LabelFrame(left_frame, text="Parámetros del Método", padding=10)
+        params_frame.pack(fill="x", pady=15)
+
+        # Puntos iniciales
+        points_frame = ttk.Frame(params_frame)
+        points_frame.pack(fill="x", pady=5)
+
+        ttk.Label(points_frame, text="Puntos iniciales:", font=("Arial", 10, "bold")).pack(side="left")
+        ttk.Label(points_frame, text="x₀ =").pack(side="left", padx=(15, 2))
+        self.x0_entry_sec = ttk.Entry(points_frame, width=10, font=("Arial", 10))
+        self.x0_entry_sec.pack(side="left", padx=2)
+        self.x0_entry_sec.insert(0, "1.0")
+
+        ttk.Label(points_frame, text="x₁ =").pack(side="left", padx=(10, 2))
+        self.x1_entry_sec = ttk.Entry(points_frame, width=10, font=("Arial", 10))
+        self.x1_entry_sec.pack(side="left", padx=2)
+        self.x1_entry_sec.insert(0, "2.0")
+
+        # Tolerancia y botones
+        control_frame = ttk.Frame(params_frame)
+        control_frame.pack(fill="x", pady=10)
+
+        ttk.Label(control_frame, text="Tolerancia:", font=("Arial", 10)).pack(side="left")
+        self.tol_entry_sec = ttk.Entry(control_frame, width=10, font=("Arial", 10))
+        self.tol_entry_sec.pack(side="left", padx=5)
+        self.tol_entry_sec.insert(0, "0.00001")
+
+        ttk.Button(control_frame, text="🔍 Buscar Puntos",
+                   command=self._buscar_puntos_sec).pack(side="left", padx=5)
+        ttk.Button(control_frame, text="🚀 Calcular Secante",
                    style="Accent.TButton",
-                   command=self._calcular_secante).pack(side="left")
+                   command=self._calc_secante_new).pack(side="left", padx=5)
 
-        ttk.Button(btn_row, text="Graficar f(x)",
-                   command=self._graficar_funcion_sec).pack(side="left", padx=5)
+        top_paned.add(left_frame, weight=1)
 
-        ttk.Button(btn_row, text="Limpiar",
-                   command=self._limpiar_secante).pack(side="left", padx=5)
+        # --- COLUMNA DERECHA: Gráfica (estilo GeoGebra) ---
+        right_frame = ttk.Labelframe(top_paned, text="Gráfica Interactiva", style="Card.TLabelframe", padding=10)
 
-        # --- Tabla de iteraciones
-        table_frame = ttk.LabelFrame(frame, text="Iteraciones del Método de la Secante", padding=8)
-        table_frame.pack(fill="both", expand=True, pady=10)
+        # Controles de la gráfica
+        graph_controls = ttk.Frame(right_frame)
+        graph_controls.pack(fill="x", pady=(0, 10))
 
-        columns = ("k", "x0", "x1", "x2", "fx0", "fx1", "error")
-        self.sec_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=15)
+        ttk.Button(graph_controls, text="🔄 Actualizar",
+                   command=self._actualizar_grafica_sec).pack(side="left")
+        ttk.Button(graph_controls, text="➖ Zoom -",
+                   command=lambda: self._zoom_grafica_sec(1.2)).pack(side="left", padx=5)
+        ttk.Button(graph_controls, text="➕ Zoom +",
+                   command=lambda: self._zoom_grafica_sec(0.8)).pack(side="left", padx=5)
 
-        headings = ["k", "x₀", "x₁", "x₂", "f(x₀)", "f(x₁)", "Error"]
-        widths = [50, 90, 90, 90, 100, 100, 90]
+        # Frame para la gráfica
+        self.graph_frame_sec = ttk.Frame(right_frame)
+        self.graph_frame_sec.pack(fill="both", expand=True)
+
+        # Inicializar gráfica
+        self._inicializar_grafica_sec()
+
+        top_paned.add(right_frame, weight=2)
+
+        # --- PARTE INFERIOR: Tabla de iteraciones ---
+        table_frame = ttk.Labelframe(main_frame, text="📊 Tabla de Iteraciones - Método de la Secante",
+                                     style="Card.TLabelframe", padding=8)
+        table_frame.pack(fill="both", expand=True)
+
+        # Crear tabla
+        columns = ("k", "x₀", "x₁", "x₂", "f(x₀)", "f(x₁)", "error")
+        self.sec_tree_new = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
+
+        headings = ["Iter", "x₀", "x₁", "x₂", "f(x₀)", "f(x₁)", "Error"]
+        widths = [60, 100, 100, 100, 120, 120, 100]
 
         for col, heading, width in zip(columns, headings, widths):
-            self.sec_tree.heading(col, text=heading)
-            self.sec_tree.column(col, width=width, anchor="center")
+            self.sec_tree_new.heading(col, text=heading)
+            self.sec_tree_new.column(col, width=width, anchor="center")
 
-        scrollbar_table = ttk.Scrollbar(table_frame, orient="vertical", command=self.sec_tree.yview)
-        self.sec_tree.configure(yscrollcommand=scrollbar_table.set)
-        self.sec_tree.pack(side="left", fill="both", expand=True)
+        # Scrollbar para la tabla
+        scrollbar_table = ttk.Scrollbar(table_frame, orient="vertical", command=self.sec_tree_new.yview)
+        self.sec_tree_new.configure(yscrollcommand=scrollbar_table.set)
+
+        self.sec_tree_new.pack(side="left", fill="both", expand=True)
         scrollbar_table.pack(side="right", fill="y")
 
-        # --- Estado
-        status_frame = ttk.Frame(frame)
-        status_frame.pack(fill="x", pady=5)
+        # Estado
+        self.sec_status_new = ttk.Label(main_frame,
+                                        text="🟢 Listo para calcular - Ingresa una función y parámetros")
+        self.sec_status_new.pack(anchor="w", pady=5)
 
-        self.secante_status = ttk.Label(
-            status_frame,
-            text="Listo para calcular",
-            font=("Times New Roman", 9)
-        )
-        self.secante_status.pack(anchor="w")
+        # Inicializar gráfica después de crear todos los componentes
+        self.after(100, self._actualizar_grafica_sec)
+
+    def _inicializar_latex_display_sec(self):
+        """Inicializa el display LaTeX para Secante"""
+        try:
+            # Crear figura para LaTeX
+            self.fig_latex_sec = plt.figure(figsize=(8, 1), dpi=100)
+            self.ax_latex_sec = self.fig_latex_sec.add_subplot(111)
+            self.ax_latex_sec.axis('off')
+
+            # Canvas para LaTeX
+            self.canvas_latex_sec = FigureCanvasTkAgg(self.fig_latex_sec, master=self.latex_frame_sec)
+            self.canvas_latex_sec.get_tk_widget().pack(fill="both", expand=True)
+
+            # Mostrar función inicial
+            self._actualizar_latex_display_sec("x^3 - x - 2")
+
+        except Exception as e:
+            print(f"Error inicializando LaTeX Secante: {e}")
+
+    def _actualizar_latex_display_sec(self, func_text):
+        """Actualiza el display LaTeX con la función en Secante"""
+        try:
+            self.ax_latex_sec.clear()
+            self.ax_latex_sec.axis('off')
+
+            # Convertir a formato LaTeX
+            latex_text = self._convert_to_latex(func_text)
+
+            # Renderizar LaTeX
+            self.ax_latex_sec.text(0.5, 0.5, f"${latex_text}$",
+                                   fontsize=16, ha='center', va='center',
+                                   transform=self.ax_latex_sec.transAxes)
+
+            self.canvas_latex_sec.draw()
+
+        except Exception as e:
+            print(f"Error actualizando LaTeX Secante: {e}")
 
     def _on_function_change_sec(self, event=None):
-        """Actualiza la vista bonita de f(x) para la pestaña de Secante."""
+        """Actualiza el display LaTeX cuando cambia la función en Secante"""
         try:
             raw_text = self.fx_entry_sec.get()
-            display_text = self._convert_to_display(raw_text)
-            self.fx_display_sec.config(text=f"f(x) = {display_text}")
-        except Exception:
-            self.fx_display_sec.config(text="f(x) = ?")
+            self._actualizar_latex_display_sec(raw_text)
+        except Exception as e:
+            print(f"Error actualizando LaTeX Secante: {e}")
+            try:
+                self._actualizar_latex_display_sec("")
+            except:
+                pass
 
-    def _calcular_secante(self):
-        """Ejecuta el método de la secante y llena la tabla."""
-        # Limpiar tabla
-        for it in self.sec_tree.get_children():
-            self.sec_tree.delete(it)
+    # --- FUNCIONES DE LA CALCULADORA PARA SECANTE ---
+    def _insert_digit_sec(self, digit):
+        """Inserta un dígito en Secante"""
+        self.fx_entry_sec.insert(tk.END, digit)
+        self._on_function_change_sec()
 
+    def _insert_operator_sec(self, op):
+        """Inserta un operador en Secante"""
+        self.fx_entry_sec.insert(tk.END, op)
+        self._on_function_change_sec()
+
+    def _insert_function_sec(self, func):
+        """Inserta una función en Secante"""
+        if func in ["sin", "cos", "tan", "sinh", "cosh", "tanh", "cot", "sec", "csc", "log", "ln", "sqrt", "cbrt"]:
+            self.fx_entry_sec.insert(tk.END, f"{func}(")
+        elif func == "exp":
+            self.fx_entry_sec.insert(tk.END, "exp(")
+        elif func == "exp10":
+            self.fx_entry_sec.insert(tk.END, "10**")
+        elif func == "yroot":
+            self.fx_entry_sec.insert(tk.END, "yroot(")
+        self._on_function_change_sec()
+
+    def _insert_power_sec(self, power):
+        """Inserta una potencia en Secante"""
+        self.fx_entry_sec.insert(tk.END, f"**{power}")
+        self._on_function_change_sec()
+
+    def _insert_constant_sec(self, const="pi"):
+        """Inserta una constante en Secante"""
+        if const == "pi":
+            self.fx_entry_sec.insert(tk.END, "pi")
+        elif const == "e":
+            self.fx_entry_sec.insert(tk.END, "e")
+        elif const == "inf":
+            self.fx_entry_sec.insert(tk.END, "inf")
+        self._on_function_change_sec()
+
+    def _insert_variable_sec(self, var):
+        """Inserta una variable en Secante"""
+        self.fx_entry_sec.insert(tk.END, var)
+        self._on_function_change_sec()
+
+    def _insert_decimal_sec(self):
+        """Inserta punto decimal en Secante"""
+        self.fx_entry_sec.insert(tk.END, ".")
+        self._on_function_change_sec()
+
+    def _insert_combination_sec(self):
+        """Inserta combinación nCr en Secante"""
+        self.fx_entry_sec.insert(tk.END, "nCr(")
+        self._on_function_change_sec()
+
+    def _insert_permutation_sec(self):
+        """Inserta permutación nPr en Secante"""
+        self.fx_entry_sec.insert(tk.END, "nPr(")
+        self._on_function_change_sec()
+
+    def _insert_matrix_sec(self):
+        """Inserta matriz en Secante"""
+        self.fx_entry_sec.insert(tk.END, "matrix(")
+        self._on_function_change_sec()
+
+    def _clear_entry_sec(self):
+        """Limpia la entrada en Secante"""
+        self.fx_entry_sec.delete(0, tk.END)
+        self._on_function_change_sec()
+
+    def _backspace_sec(self):
+        """Elimina el último carácter en Secante"""
+        current = self.fx_entry_sec.get()
+        if current:
+            self.fx_entry_sec.delete(0, tk.END)
+            self.fx_entry_sec.insert(0, current[:-1])
+        self._on_function_change_sec()
+
+    def _toggle_second_functions_sec(self):
+        """Alterna funciones secundarias en Secante"""
+        messagebox.showinfo("2nd", "Funciones secundarias activadas")
+
+    def _inicializar_grafica_sec(self):
+        """Inicializa la gráfica estilo GeoGebra para Secante"""
+        if hasattr(self, 'fig_sec'):
+            return
+
+        self.fig_sec = plt.figure(figsize=(6, 4), dpi=100)
+        self.ax_sec = self.fig_sec.add_subplot(111)
+
+        # Estilo GeoGebra
+        self.ax_sec.set_facecolor('#F5F5F5')
+        self.fig_sec.patch.set_facecolor('#FFFFFF')
+        self.ax_sec.grid(True, color='gray', linestyle='--', alpha=0.7)
+        self.ax_sec.axhline(y=0, color='k', linewidth=1)
+        self.ax_sec.axvline(x=0, color='k', linewidth=1)
+        self.ax_sec.set_xlabel('x', fontsize=12)
+        self.ax_sec.set_ylabel('f(x)', fontsize=12)
+        self.ax_sec.set_title('Gráfica de la función', fontsize=14, pad=20)
+
+        # Canvas
+        self.canvas_sec = FigureCanvasTkAgg(self.fig_sec, master=self.graph_frame_sec)
+        self.canvas_sec.draw()
+        self.canvas_sec.get_tk_widget().pack(fill="both", expand=True)
+
+        # Toolbar
+        self.toolbar_sec = NavigationToolbar2Tk(self.canvas_sec, self.graph_frame_sec)
+        self.toolbar_sec.update()
+        self.toolbar_sec.pack(side="bottom", fill="x")
+
+    def _actualizar_grafica_sec(self):
+        """Actualiza la gráfica con la función actual en Secante"""
         try:
-            func_str = self.fx_entry_sec.get().strip()
-            if not func_str:
-                raise ValueError("Ingresa una expresión para f(x).")
+            func_str = self.fx_entry_sec.get()
+            if not func_str.strip():
+                return
 
             f = self._parse_calculation(func_str)
 
+            # Limpiar gráfica
+            self.ax_sec.clear()
+
+            # Obtener rango basado en x0 y x1
+            try:
+                x0 = float(self.x0_entry_sec.get())
+                x1 = float(self.x1_entry_sec.get())
+                x_min = min(x0, x1) - 2
+                x_max = max(x0, x1) + 2
+            except:
+                x_min, x_max = -5, 5
+
+            # Calcular puntos
+            x_vals = np.linspace(x_min, x_max, 400)
+            y_vals = []
+            for x in x_vals:
+                try:
+                    y_vals.append(f(x))
+                except:
+                    y_vals.append(np.nan)
+
+            # Graficar
+            self.ax_sec.plot(x_vals, y_vals, 'b-', linewidth=2,
+                             label=f'f(x) = {self._convert_to_display(func_str)}')
+            self.ax_sec.axhline(y=0, color='k', linestyle='-', alpha=0.5)
+
+            # Marcar puntos iniciales si son válidos
+            try:
+                x0 = float(self.x0_entry_sec.get())
+                x1 = float(self.x1_entry_sec.get())
+                fx0 = f(x0)
+                fx1 = f(x1)
+
+                self.ax_sec.axvline(x=x0, color='r', linestyle='--', alpha=0.7, label=f'x₀ = {x0:.2f}')
+                self.ax_sec.axvline(x=x1, color='g', linestyle='--', alpha=0.7, label=f'x₁ = {x1:.2f}')
+                self.ax_sec.plot(x0, fx0, 'ro', markersize=6)
+                self.ax_sec.plot(x1, fx1, 'go', markersize=6)
+            except:
+                pass
+
+            # Restaurar estilo
+            self.ax_sec.set_facecolor('#F5F5F5')
+            self.ax_sec.grid(True, color='gray', linestyle='--', alpha=0.7)
+            self.ax_sec.axhline(y=0, color='k', linewidth=1)
+            self.ax_sec.axvline(x=0, color='k', linewidth=1)
+            self.ax_sec.set_xlabel('x', fontsize=12)
+            self.ax_sec.set_ylabel('f(x)', fontsize=12)
+            self.ax_sec.set_title('Gráfica de la función', fontsize=14, pad=20)
+            self.ax_sec.legend()
+
+            self.canvas_sec.draw()
+
+        except Exception as e:
+            print(f"Error al graficar Secante: {e}")
+
+    def _zoom_grafica_sec(self, factor):
+        """Aplica zoom a la gráfica en Secante"""
+        try:
+            xlim = self.ax_sec.get_xlim()
+            ylim = self.ax_sec.get_ylim()
+
+            x_center = (xlim[0] + xlim[1]) / 2
+            y_center = (ylim[0] + ylim[1]) / 2
+
+            x_range = (xlim[1] - xlim[0]) * factor
+            y_range = (ylim[1] - ylim[0]) * factor
+
+            self.ax_sec.set_xlim(x_center - x_range / 2, x_center + x_range / 2)
+            self.ax_sec.set_ylim(y_center - y_range / 2, y_center + y_range / 2)
+
+            self.canvas_sec.draw()
+        except:
+            pass
+
+    def _buscar_puntos_sec(self):
+        """Busca automáticamente puntos iniciales para Secante"""
+        try:
+            func_str = self.fx_entry_sec.get()
+            f = self._parse_calculation(func_str)
+
+            # Buscar un intervalo donde la función cruce el eje x
+            from numericos import encontrar_intervalo_automatico
+            a, b, mensaje = encontrar_intervalo_automatico(f)
+
+            # Usar puntos dentro del intervalo
+            x0 = a + (b - a) * 0.3  # 30% del intervalo
+            x1 = a + (b - a) * 0.7  # 70% del intervalo
+
+            self.x0_entry_sec.delete(0, tk.END)
+            self.x0_entry_sec.insert(0, f"{x0:.4f}")
+            self.x1_entry_sec.delete(0, tk.END)
+            self.x1_entry_sec.insert(0, f"{x1:.4f}")
+
+            self._actualizar_grafica_sec()
+            self.sec_status_new.config(text="Puntos iniciales encontrados automáticamente")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudieron encontrar puntos iniciales: {str(e)}")
+
+    def _calc_secante_new(self):
+        """Calcula Secante con las nuevas entradas"""
+        # Limpiar tabla
+        for item in self.sec_tree_new.get_children():
+            self.sec_tree_new.delete(item)
+
+        try:
+            func_str = self.fx_entry_sec.get()
+            f = self._parse_calculation(func_str)
             x0 = float(self.x0_entry_sec.get())
             x1 = float(self.x1_entry_sec.get())
+            tol = float(self.tol_entry_sec.get())
 
-            tol_txt = (self.tol_entry_sec.get() or "").strip()
-            tol = float(tol_txt) if tol_txt not in ("",) else 1e-6
+            if x0 == x1:
+                raise ValueError("x₀ y x₁ deben ser diferentes")
 
             from numericos import secante
             raiz, pasos, motivo = secante(f, x0, x1, tol=tol, max_iter=100, usar_error="absoluto")
 
-            # Guardar para usar en gráficas posteriores
-            self.sec_last_root = raiz
-            self.sec_last_func_str = func_str
+            # Mostrar en tabla
+            self._mostrar_resultados_sec_new(pasos, raiz, motivo)
 
-            # Llenar tabla
-            for p in pasos:
-                self.sec_tree.insert(
-                    "",
-                    "end",
-                    values=(
-                        p["k"],
-                        f"{p['x0']:.6f}",
-                        f"{p['x1']:.6f}",
-                        f"{p['x2']:.6f}",
-                        f"{p['fx0']:.6f}",
-                        f"{p['fx1']:.6f}",
-                        f"{p['error']:.6f}" if p["error"] != float('inf') else "—"
-                    )
-                )
+            # Actualizar gráfica con la raíz encontrada
+            self._actualizar_grafica_con_raiz_sec(raiz, f)
 
-            # Mostrar ventana emergente con resultados
-            self._mostrar_resultados_popup_secante(func_str, f, x0, x1, raiz, pasos, motivo)
-
-            self.secante_status.config(
-                text=f"Secante completado - {len(pasos)} iteraciones ({motivo})"
-            )
-            if hasattr(self, "lbl_result"):
-                self.lbl_result.config(text=f"Raíz ≈ {raiz:.8f} (Secante: {motivo})")
+            self.sec_status_new.config(
+                text=f"Secante completado - {len(pasos)} iteraciones - Raíz ≈ {raiz:.8f}")
 
         except Exception as e:
-            messagebox.showerror("Error en método de la Secante", str(e))
+            messagebox.showerror("Error en Secante", str(e))
 
-    def _mostrar_resultados_popup_secante(self, func_str, f, x0, x1, raiz, pasos, motivo):
-        """Muestra ventana emergente con gráfica y resultados detallados del método de la Secante."""
-        popup = tk.Toplevel(self)
-        popup.title("Resultados - Método de la Secante")
-        popup.geometry("1020x600")
-        popup.minsize(800, 600)
-        popup.transient(self)
-        popup.grab_set()
-        configurar_estilo_oscuro(popup)
-
-        # Frame principal
-        main_frame = ttk.Frame(popup, padding=10)
-        main_frame.pack(fill="both", expand=True)
-
-        # Título
-        title_label = ttk.Label(main_frame, text="Resultados del Método de la Secante",
-                                font=("Times New Roman", 14, "bold"))
-        title_label.pack(pady=(0, 10))
-
-        # Frame para gráfica y resultados
-        content_frame = ttk.PanedWindow(main_frame, orient="horizontal")
-        content_frame.pack(fill="both", expand=True, pady=10)
-
-        # Frame para gráfica
-        graph_frame = ttk.Labelframe(content_frame, text="Gráfica de la Función",
-                                     style="Card.TLabelframe", padding=8)
-
-        # Crear figura de matplotlib
-        fig = plt.figure(figsize=(8, 5), dpi=100)
-        ax = fig.add_subplot(111)
-
-        # Determinar rango para graficar
-        all_x_values = [x0, x1, raiz]
-        for paso in pasos:
-            all_x_values.extend([paso.get('x0', 0), paso.get('x1', 0), paso.get('x2', 0)])
-
-        min_x = min(all_x_values)
-        max_x = max(all_x_values)
-        margen = 0.2 * (max_x - min_x) if max_x != min_x else 1.0
-
-        x_plot = np.linspace(min_x - margen, max_x + margen, 400)
-        y_plot = [f(xi) for xi in x_plot]
-
-        # Graficar función
-        ax.plot(x_plot, y_plot, 'b-', linewidth=2, label=f'f(x) = {self._convert_to_display(func_str)}')
-        ax.axhline(y=0, color='k', linestyle='-', alpha=0.7)
-
-        # Marcar puntos importantes
-        ax.axvline(x=x0, color='r', linestyle='--', alpha=0.7, label=f'x₀ = {x0:.4f}')
-        ax.axvline(x=x1, color='g', linestyle='--', alpha=0.7, label=f'x₁ = {x1:.4f}')
-        ax.axvline(raiz, color="orange", linestyle="--", alpha=0.9,label=f"Raíz secante ≈ {raiz:.4f}")
-        ax.plot(raiz, f(raiz), "o", color="orange")
-
-        ax.grid(True, alpha=0.3)
-        ax.set_xlabel('x')
-        ax.set_ylabel('f(x)')
-        ax.set_title('Gráfica de la función y solución encontrada')
-        ax.legend()
-
-        # Canvas y toolbar interactiva
-        canvas = FigureCanvasTkAgg(fig, master=graph_frame)
-        canvas.draw()
-
-        toolbar = NavigationToolbar2Tk(canvas, graph_frame)
-        toolbar.update()
-        toolbar.pack(side="bottom", fill="x")
-
-        canvas.get_tk_widget().pack(fill="both", expand=True)
-
-        content_frame.add(graph_frame, weight=3)
-
-        # Frame para resultados
-        results_frame = ttk.Labelframe(content_frame, text="Resultados del Cálculo",
-                                       style="Card.TLabelframe", padding=8)
-
-        # Crear área de texto para resultados
-        results_text = tk.Text(results_frame, height=20, wrap="word", width=35)
-        results_text.pack(fill="both", expand=True)
-
-        # Configurar estilo del texto
-        results_text.configure(
-            background="#1E1E1E",
-            foreground="#FFFFFF",
-            font=("Cascadia Code", 10),
-            padx=12,
-            pady=12,
-            spacing1=2,
-            spacing2=1,
-            spacing3=2
-        )
-
-        # Escribir resultados
-        results_text.insert(tk.END, "RESULTADOS DEL MÉTODO DE LA SECANTE\n")
-        results_text.insert(tk.END, "=" * 40 + "\n\n")
-
-        results_text.insert(tk.END, "FUNCIÓN ANALIZADA:\n")
-        results_text.insert(tk.END, f"f(x) = {self._convert_to_display(func_str)}\n\n")
-
-        results_text.insert(tk.END, "PUNTOS INICIALES:\n")
-        results_text.insert(tk.END, f"x₀ = {x0:.8f}\n")
-        results_text.insert(tk.END, f"x₁ = {x1:.8f}\n\n")
-
-        results_text.insert(tk.END, "RESULTADO FINAL:\n")
-        results_text.insert(tk.END, "─" * 20 + "\n")
-        results_text.insert(tk.END, f"Raíz aproximada: {raiz:.10f}\n")
-        results_text.insert(tk.END, f"f(raíz) ≈ {f(raiz):.2e}\n")
-        results_text.insert(tk.END, f"Iteraciones: {len(pasos)}\n")
-
-        # Calcular error final
-        if len(pasos) > 0:
-            error_final = pasos[-1].get("error", 0)
-            if error_final == error_final and error_final != float('inf'):  # No es NaN ni infinito
-                results_text.insert(tk.END, f"Error final: {error_final:.10f}\n")
-            else:
-                results_text.insert(tk.END, f"Error final: —\n")
-        else:
-            results_text.insert(tk.END, f"Error final: —\n")
-
-        results_text.insert(tk.END, "\nCONFIGURACIÓN:\n")
-        results_text.insert(tk.END, f"Tolerancia: {float(self.tol_entry_sec.get()):.8f}\n")
-        results_text.insert(tk.END, f"Criterio de parada: {motivo}\n")
-
-        results_text.config(state="disabled")
-        content_frame.add(results_frame, weight=1)
-
-    def _graficar_funcion_sec(self):
-        """Muestra una vista previa de f(x) usando x₀ y x₁ como referencia, y la raíz si ya fue calculada."""
+    def _actualizar_grafica_con_raiz_sec(self, raiz, f):
+        """Actualiza la gráfica marcando la raíz encontrada en Secante"""
         try:
-            func_str = self.fx_entry_sec.get().strip()
-            if not func_str:
-                raise ValueError("Ingresa una expresión para f(x).")
-
-            f = self._parse_calculation(func_str)
-
-            # Intentar usar x0 y x1 para el rango
-            try:
-                x0 = float(self.x0_entry_sec.get())
-                x1 = float(self.x1_entry_sec.get())
-                a = min(x0, x1)
-                b = max(x0, x1)
-                if a == b:
-                    a -= 1.0
-                    b += 1.0
-            except Exception:
-                x0 = x1 = None
-                a, b = -5.0, 5.0
-
-            popup = tk.Toplevel(self)
-            popup.title("Vista previa de f(x) - Secante")
-            popup.geometry("900x550")
-            popup.minsize(700, 450)
-            popup.transient(self)
-            popup.grab_set()
-            configurar_estilo_oscuro(popup)
-
-            container = ttk.Frame(popup, padding=10)
-            container.pack(fill="both", expand=True)
-
-            ttk.Label(
-                container,
-                text=f"f(x) = {self._convert_to_display(func_str)}",
-                font=("Times New Roman", 11, "bold")
-            ).pack(anchor="w", pady=(0, 8))
-
-            fig = plt.figure(figsize=(6.5, 4), dpi=100)
-            ax = fig.add_subplot(111)
-
-            margen = 0.1 * (b - a if b != a else 1.0)
-            xs = np.linspace(a - margen, b + margen, 600)
-            ys = []
-            for x in xs:
-                try:
-                    ys.append(f(x))
-                except Exception:
-                    ys.append(np.nan)
-
-            # Gráfica principal
-            ax.plot(xs, ys, linewidth=2, label=f"f(x) = {self._convert_to_display(func_str)}")
-            ax.axhline(0, color="black", linestyle="-", alpha=0.7)
-
-            # Marcar x0 y x1 si existen
-            if x0 is not None:
-                ax.axvline(x0, color="red", linestyle="--", alpha=0.8, label=f"x₀ = {x0:.4f}")
-            if x1 is not None:
-                ax.axvline(x1, color="green", linestyle="--", alpha=0.8, label=f"x₁ = {x1:.4f}")
-
-
-            ax.set_xlabel("x")
-            ax.set_ylabel("f(x)")
-            ax.grid(True, alpha=0.3)
-            ax.legend(loc="best")
-
-            canvas = FigureCanvasTkAgg(fig, master=container)
-            canvas.draw()
-
-            # Toolbar interactiva (zoom, pan, guardar, etc.)
-            toolbar = NavigationToolbar2Tk(canvas, container)
-            toolbar.update()
-            toolbar.pack(side="bottom", fill="x")
-
-            canvas.get_tk_widget().pack(fill="both", expand=True)
-
+            # Limpiar y volver a graficar
+            self._actualizar_grafica_sec()
+            # Marcar la raíz
+            self.ax_sec.plot(raiz, f(raiz), 'ro', markersize=10, markerfacecolor='red',
+                             markeredgecolor='darkred', markeredgewidth=2,
+                             label=f'Raíz ≈ {raiz:.6f}')
+            self.ax_sec.legend()
+            self.canvas_sec.draw()
         except Exception as e:
-            messagebox.showerror("Error al graficar", str(e))
-            
-    def _limpiar_secante(self):
-        """Limpia entradas y tabla de la pestaña Secante."""
-        self.fx_entry_sec.delete(0, tk.END)
-        self.x0_entry_sec.delete(0, tk.END)
-        self.x1_entry_sec.delete(0, tk.END)
-        self.tol_entry_sec.delete(0, tk.END)
-        self.tol_entry_sec.insert(0, "1e-6")
-        for it in self.sec_tree.get_children():
-            self.sec_tree.delete(it)
-        self.secante_status.config(text="Listo para calcular")
+            print(f"Error al actualizar gráfica con raíz Secante: {e}")
+
+    def _mostrar_resultados_sec_new(self, pasos, raiz, motivo):
+        """Muestra los resultados de la Secante en la tabla nueva"""
+        for row in pasos:
+            # Formatear error (puede ser NaN en primera iteración)
+            error = row.get("error", 0)
+            error_str = "—" if (error != error) or error == float('inf') else f"{error:.6f}"
+
+            self.sec_tree_new.insert("", "end", values=(
+                row["k"],
+                f"{row['x0']:.6f}",
+                f"{row['x1']:.6f}",
+                f"{row['x2']:.6f}",
+                f"{row['fx0']:.6f}",
+                f"{row['fx1']:.6f}",
+                error_str
+            ))
+
+        # Resaltar última iteración
+        if pasos:
+            last_iid = self.sec_tree_new.get_children()[-1]
+            self.sec_tree_new.selection_set(last_iid)
+            self.sec_tree_new.focus(last_iid)
 
 #--------------RUN----------#       
 if __name__ == "__main__":
