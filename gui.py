@@ -195,32 +195,15 @@ class StartMenu(tk.Frame):
         self._create_widgets()
 
     def _create_widgets(self):
-        # Frame principal centrado
+        # ====== Contenedor principal ======
         main_container = tk.Frame(self, bg="#1e1e1e")
         main_container.pack(fill="both", expand=True)
 
-        # Frame para centrar el contenido
-        center_frame = tk.Frame(main_container, bg="#1e1e1e")
-        center_frame.place(relx=0.5, rely=0.5, anchor="center")
+        # ====== Título principal ======
+        title_frame = tk.Frame(main_container, bg="#1e1e1e")
+        title_frame.pack(side="top", fill="x", pady=(30, 20))
 
-        # Canvas y scrollbar para contenido desplazable
-        canvas = tk.Canvas(center_frame, bg="#1e1e1e", highlightthickness=0, width=1200, height=950)
-        scrollable_frame = ttk.Frame(canvas, style="TFrame")
-
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-
-        canvas.pack(side="left", fill="both", expand=True)
-
-        # Título principal mejorado
-        title_frame = tk.Frame(scrollable_frame, bg="#1e1e1e")
-        title_frame.pack(fill="x", pady=(30, 20))
-
-        # Logo/Icono (puedes reemplazar con tu propio logo)
+        # Logo/Icono
         logo_label = tk.Label(
             title_frame,
             text="🧮",
@@ -232,7 +215,7 @@ class StartMenu(tk.Frame):
 
         title = tk.Label(
             title_frame,
-            text="Soluciones de Álgebra Lineal",
+            text="NumeraX Jaguar",
             font=("Times New Roman", 28, "bold"),
             bg="#1e1e1e",
             fg="#4fc3f7"
@@ -252,11 +235,14 @@ class StartMenu(tk.Frame):
         separator = ttk.Separator(title_frame, orient="horizontal")
         separator.pack(fill="x", padx=100, pady=15)
 
-        # Frame para las categorías
-        categories_frame = tk.Frame(scrollable_frame, bg="#1e1e1e")
-        categories_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        # ====== Zona central para categorías ======
+        # Este frame se expande y mantiene el contenido centrado
+        center_frame = tk.Frame(main_container, bg="#1e1e1e")
+        center_frame.pack(side="top", expand=True)
 
-        # Categorías de métodos con diseño mejorado
+        categories_frame = tk.Frame(center_frame, bg="#1e1e1e")
+        categories_frame.pack()  # centrado por defecto
+
         categories = {
             " Sistemas de Ecuaciones": [
                 ("Gauss-Jordan", self.app.show_gauss_jordan),
@@ -283,13 +269,11 @@ class StartMenu(tk.Frame):
             ]
         }
 
-        # Crear categorías en un grid responsive
         row = 0
         col = 0
         max_cols = 4
 
         for category_name, methods in categories.items():
-            # Frame para cada categoría con estilo mejorado
             cat_frame = tk.LabelFrame(
                 categories_frame,
                 text=category_name,
@@ -301,12 +285,11 @@ class StartMenu(tk.Frame):
                 relief="ridge",
                 bd=2
             )
-            cat_frame.grid(row=row,column=col,padx=15,pady=15,sticky="nsew",ipadx=10,ipady=5)
+            cat_frame.grid(row=row, column=col, padx=15, pady=15,
+                           sticky="nsew", ipadx=10, ipady=5)
 
-            # Configurar grid weight para expansión
             categories_frame.grid_rowconfigure(row, weight=1)
             categories_frame.grid_columnconfigure(col, weight=1)
-
 
             for method_name, command in methods:
                 btn = tk.Button(
@@ -325,16 +308,17 @@ class StartMenu(tk.Frame):
                 )
                 btn.pack(pady=6, fill="x")
 
-                # Efectos hover
                 btn.bind("<Enter>", lambda e, b=btn: b.configure(bg="#1d4ed8"))
                 btn.bind("<Leave>", lambda e, b=btn: b.configure(bg="#2563EB"))
 
-            # Avanzar en el grid
             col += 1
+            if col >= max_cols:
+                col = 0
+                row += 1
 
-        # Footer
-        footer_frame = tk.Frame(scrollable_frame, bg="#1e1e1e")
-        footer_frame.pack(fill="x", pady=30)
+        # ====== Footer ======
+        footer_frame = tk.Frame(main_container, bg="#1e1e1e")
+        footer_frame.pack(side="bottom", fill="x", pady=30)
 
         footer_text = tk.Label(
             footer_frame,
@@ -345,12 +329,6 @@ class StartMenu(tk.Frame):
         )
         footer_text.pack()
 
-        # Ajustar scroll al inicio
-        canvas.update_idletasks()
-        canvas.yview_moveto(0)
-
-        # Ajustar el tamaño del canvas para que se centre correctamente
-        canvas.configure(scrollregion=canvas.bbox("all"))
 
 # ------------------ App  ------------------
 
@@ -358,9 +336,13 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.root = None
-        self.title("Soluciones de Álgebra Lineal")
+        self.title("NumeraX Jaguar")
         self.geometry("1920x1080")
         self.minsize(1100, 700)
+        try:
+            self.state("zoomed")
+        except:
+            self.attributes("-zoomed", True)
         configurar_estilo_oscuro(self)
 
         # Variables de control
@@ -372,6 +354,11 @@ class App(tk.Tk):
         self.auto_running_gauss = False
         self.auto_thread_gauss = None
         self.btn_auto_gauss = None
+
+        # Widgets comunes
+        self.result_card = None      # frame que contiene "Resultado"
+        self.lbl_result = None
+        self.status = None
 
         # Crear el menú de inicio
         self.start_menu = StartMenu(self, self)
@@ -390,9 +377,23 @@ class App(tk.Tk):
         if self.nb is None:
             self.nb = ttk.Notebook(self)
             self._build_tabs()
-
             # Agregar botón de volver al inicio
             self._add_home_button()
+
+        # Construir widgets comunes (pero NO los empacamos aquí)
+        self._build_common_widgets()
+
+        # ---------------------------------------------------------
+        #  MOSTRAR / OCULTAR BARRA SUPERIOR SEGÚN LA PESTAÑA
+        # ---------------------------------------------------------
+        if tab_name == "Independencia Lineal":
+            # Mostrar barra superior solo en esta pestaña
+            if self.result_card is not None and self.result_card.winfo_manager() == "":
+                self.result_card.pack(fill="x", padx=10, pady=(0, 8))
+        else:
+            # Ocultar barra superior en cualquier otra pestaña
+            if self.result_card is not None and self.result_card.winfo_manager() != "":
+                self.result_card.pack_forget()
 
         # Ocultar todas las pestañas primero
         for tab in self.nb.tabs():
@@ -400,7 +401,7 @@ class App(tk.Tk):
 
         # Buscar y mostrar la pestaña específica
         target_tab = None
-        for i, tab in enumerate(self.nb.tabs()):
+        for tab in self.nb.tabs():
             if self.nb.tab(tab, "text") == tab_name:
                 target_tab = tab
                 break
@@ -411,7 +412,6 @@ class App(tk.Tk):
 
         # Mostrar notebook
         self.nb.pack(fill="both", expand=True, padx=10, pady=(0, 8))
-        self._build_common_widgets()
 
     def _add_home_button(self):
         """Agrega un botón para volver al menú de inicio"""
@@ -421,8 +421,8 @@ class App(tk.Tk):
             command=self.show_home,
             style="Accent.TButton"
         )
-        # Posicionar el botón en la esquina superior derecha
         home_button.place(relx=0.95, rely=0.02, anchor="ne")
+
 
     def _toggle_grid_bisec(self):
         """Alternar la rejilla en la gráfica de bisección"""
@@ -430,14 +430,19 @@ class App(tk.Tk):
             self.ax_bisec.grid(not self.ax_bisec.get_gridlines()[0].get_visible())
             self.canvas_bisec.draw()
 
-
     def show_home(self):
         """Vuelve al menú de inicio"""
+        # Ocultar notebook
         if self.nb:
             self.nb.pack_forget()
+
+        # Ocultar la barra de resultado solo en el menú principal
+        if self.result_card is not None:
+            self.result_card.pack_forget()
+
+        # (El status bar lo dejo, si quieres también se puede ocultar)
         self.start_menu.pack(fill="both", expand=True)
         self.current_tab = None
-
     # Métodos para mostrar pestañas específicas (modificados)
     def show_gauss_jordan(self):
         self.show_single_tab("Gauss-Jordan")
@@ -484,17 +489,30 @@ class App(tk.Tk):
     def show_secante(self):
         self.show_single_tab("Secante")
 
+    
     def _build_common_widgets(self):
-        """Construye los widgets comunes que se muestran después del menú de inicio"""
-        # Resultado general + estado (solo si no existen)
-        if not hasattr(self, 'lbl_result'):
-            result_card = ttk.Labelframe(self, text="Resultado", style="Card.TLabelframe", padding=8)
-            result_card.pack(fill="x", padx=10, pady=(0, 8))
-            self.lbl_result = ttk.Label(result_card, text="—", style="Title.TLabel")
+        """Crea (si hace falta) la barra de resultado y la barra de estado."""
+
+        # Crear la barra superior solo una vez, pero NO empacarla aquí
+        if self.result_card is None:
+            self.result_card = ttk.Labelframe(
+                self,
+                text="Resultado",
+                style="Card.TLabelframe",
+                padding=8
+            )
+            self.lbl_result = ttk.Label(
+                self.result_card,
+                text="—",
+                style="Title.TLabel"
+            )
             self.lbl_result.pack(anchor="w")
 
+        # Crear y empaquetar (una sola vez) la barra de estado inferior
+        if self.status is None:
             self.status = ttk.Label(self, text="Listo.", style="Status.TLabel")
             self.status.pack(fill="x", side="bottom")
+
 
     # -------- Estilos (solo UI) --------
     def _setup_style(self):
@@ -673,38 +691,93 @@ class App(tk.Tk):
         self.nb.add(tab, text="Gauss-Jordan")
 
         # Controles superiores de tamaño y utilidades
-        top = ttk.Frame(tab);
+        top = ttk.Frame(tab)
         top.pack(fill="x", padx=8, pady=(8, 4))
+
         ttk.Label(top, text="Ecuaciones (m):").pack(side="left", padx=(2, 4))
         self.spin_m = tk.Spinbox(top, from_=1, to=12, width=4)
-        self.spin_m.delete(0, "end");
-        self.spin_m.insert(0, "3");
+        self.spin_m.delete(0, "end")
+        self.spin_m.insert(0, "3")
         self.spin_m.pack(side="left")
+
         ttk.Label(top, text="Incógnitas (n):").pack(side="left", padx=(10, 4))
         self.spin_n = tk.Spinbox(top, from_=1, to=12, width=4)
-        self.spin_n.delete(0, "end");
-        self.spin_n.insert(0, "3");
+        self.spin_n.delete(0, "end")
+        self.spin_n.insert(0, "3")
         self.spin_n.pack(side="left", padx=(0, 8))
+
         ttk.Button(top, text="Redimensionar", command=self.resize_matrix).pack(side="left", padx=(0, 6))
         ttk.Button(top, text="Ejemplo", command=self.load_example).pack(side="left", padx=3)
         ttk.Button(top, text="Limpiar", command=self.clear_inputs).pack(side="left", padx=3)
 
-        # Controles locales de Gauss-Jordan (LOCALES A ESTA PESTAÑA)
-        ctrls = ttk.Frame(tab); ctrls.pack(fill="x", padx=8, pady=(0,8))
-        ttk.Button(ctrls, text="Resolver (inicializar)", style="Accent.TButton",
-                   command=self.start_engine).pack(side="left", padx=(0,6))
-        ttk.Button(ctrls, text="Siguiente paso", command=self.next_step).pack(side="left", padx=3)
-        self.btn_auto = ttk.Button(ctrls, text="Reproducir", command=self.toggle_auto)
-        self.btn_auto.pack(side="left", padx=3)
-        ttk.Button(ctrls, text="Reiniciar", command=self.reset).pack(side="left", padx=3)
-        ttk.Button(ctrls, text="Exportar pasos", command=self.export_log).pack(side="left", padx=3)
+        # Controles locales de Gauss-Jordan
+        ctrls = ttk.Frame(tab)
+        ctrls.pack(fill="x", padx=8, pady=(0, 8))
 
-        # Cuerpo: entrada matriz aumentada + vista y pasos
+        ttk.Button(
+            ctrls, text="Resolver (inicializar)",
+            style="Accent.TButton",
+            command=self.start_engine
+        ).pack(side="left", padx=(0, 6))
+
+        ttk.Button(
+            ctrls, text="Siguiente paso",
+            command=self.next_step
+        ).pack(side="left", padx=3)
+
+        self.btn_auto = ttk.Button(
+            ctrls, text="Reproducir",
+            command=self.toggle_auto
+        )
+        self.btn_auto.pack(side="left", padx=3)
+
+        ttk.Button(
+            ctrls, text="Reiniciar",
+            command=self.reset
+        ).pack(side="left", padx=3)
+
+        ttk.Button(
+            ctrls, text="Exportar pasos",
+            command=self.export_log
+        ).pack(side="left", padx=3)
+
+        # ================= NUEVA SECCIÓN: INPUT DE SISTEMA =================
+        display_frame = ttk.Frame(tab)
+        display_frame.pack(fill="x", padx=8, pady=(10, 0))
+
+        self.gauss_preview = ttk.Label(
+            display_frame,
+            text="Ingresa el sistema de ecuaciones",
+            font=("Times New Roman", 16),
+            anchor="center"
+        )
+        self.gauss_preview.pack(fill="x", padx=10, pady=10)
+
+        input_frame = ttk.Frame(tab)
+        input_frame.pack(fill="x", padx=8)
+
+        ttk.Label(input_frame, text="Sistema =").pack(side="left", padx=(0, 5))
+
+        self.gauss_input = ttk.Entry(input_frame, font=("Consolas", 11))
+        self.gauss_input.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+        ttk.Button(
+            input_frame,
+            text="Generar matriz",
+            style="Accent.TButton",
+            command=self._gauss_generar_matriz
+        ).pack(side="left")
+
+        # ================= CUERPO ORIGINAL =================
         body = ttk.Panedwindow(tab, orient="horizontal")
         body.pack(fill="both", expand=True, padx=8, pady=8)
 
-        left = ttk.Labelframe(body, text="Matriz aumentada (coeficientes | términos independientes)",
-                              style="Card.TLabelframe", padding=8)
+        left = ttk.Labelframe(
+            body,
+            text="Matriz aumentada (coeficientes | términos independientes)",
+            style="Card.TLabelframe",
+            padding=8
+        )
         self.matrix_input = MatrixInput(left, rows=3, cols=3, allow_b=True)
         self.matrix_input.pack(fill="x")
         body.add(left, weight=1)
@@ -714,15 +787,17 @@ class App(tk.Tk):
 
         sub = ttk.Panedwindow(right, orient="horizontal")
         sub.pack(fill="both", expand=True)
+
         boxA = ttk.Labelframe(sub, text="Matriz y pivotes", style="Card.TLabelframe", padding=6)
-        self.matrix_view = MatrixView(boxA); self.matrix_view.pack(fill="both", expand=True)
+        self.matrix_view = MatrixView(boxA)
+        self.matrix_view.pack(fill="both", expand=True)
         sub.add(boxA, weight=1)
 
         boxB = ttk.Labelframe(sub, text="Pasos / Operaciones", style="Card.TLabelframe", padding=6)
-        self.txt_log = make_text(boxB, height=14, wrap="word"); self.txt_log.pack(fill="both", expand=True)
+        self.txt_log = make_text(boxB, height=14, wrap="word")
+        self.txt_log.pack(fill="both", expand=True)
         sub.add(boxB, weight=1)
 
-        # --- Cuadro de salida del sistema (como la imagen de la derecha) ---
         solution_card = ttk.Labelframe(
             right,
             text="Resultados del sistema",
@@ -732,40 +807,100 @@ class App(tk.Tk):
         self.txt_solution = make_text(solution_card, height=6, wrap="word")
         self.txt_solution.pack(fill="both", expand=True)
         solution_card.pack(fill="x", pady=(8, 0))
-        
-            # -------- Tab 2: Gauss (método sencillo, solo hacia adelante) --------
+
+    # -------- Tab 2: Gauss (método sencillo, solo hacia adelante) --------
     def _tab_gauss_simple(self):
         tab = ttk.Frame(self.nb)
         self.nb.add(tab, text="Gauss")
 
-        # Controles superiores de tamaño y utilidades
-        top = ttk.Frame(tab); top.pack(fill="x", padx=8, pady=(8,4))
-        ttk.Label(top, text="Ecuaciones (m):").pack(side="left", padx=(2,4))
+        # =============== NUEVA SECCIÓN: INPUT DE SISTEMA ==================
+        display_frame = ttk.Frame(tab)
+        display_frame.pack(fill="x", padx=8, pady=(10, 0))
+
+        self.gauss_preview_simple = ttk.Label(
+            display_frame,
+            text="Ingresa el sistema de ecuaciones",
+            font=("Times New Roman", 16),
+            anchor="center"
+        )
+        self.gauss_preview_simple.pack(fill="x", padx=10, pady=10)
+
+        input_frame = ttk.Frame(tab)
+        input_frame.pack(fill="x", padx=8, pady=(0, 8))
+
+        ttk.Label(input_frame, text="Sistema =").pack(side="left", padx=(0, 5))
+
+        self.gauss_input_simple = ttk.Entry(input_frame, font=("Consolas", 11))
+        self.gauss_input_simple.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+        ttk.Button(
+            input_frame,
+            text="Generar matriz",
+            style="Accent.TButton",
+            command=lambda: self._gauss_generar_matriz(simple=True)
+        ).pack(side="left")
+
+        # =============== CONTROLES SUPERIORES ORIGINALES ===================
+        top = ttk.Frame(tab)
+        top.pack(fill="x", padx=8, pady=(8, 4))
+
+        ttk.Label(top, text="Ecuaciones (m):").pack(side="left", padx=(2, 4))
         self.spin_m_gauss = tk.Spinbox(top, from_=1, to=12, width=4)
-        self.spin_m_gauss.delete(0,"end"); self.spin_m_gauss.insert(0,"3"); self.spin_m_gauss.pack(side="left")
-        ttk.Label(top, text="Incógnitas (n):").pack(side="left", padx=(10,4))
+        self.spin_m_gauss.delete(0, "end")
+        self.spin_m_gauss.insert(0, "3")
+        self.spin_m_gauss.pack(side="left")
+
+        ttk.Label(top, text="Incógnitas (n):").pack(side="left", padx=(10, 4))
         self.spin_n_gauss = tk.Spinbox(top, from_=1, to=12, width=4)
-        self.spin_n_gauss.delete(0,"end"); self.spin_n_gauss.insert(0,"3"); self.spin_n_gauss.pack(side="left", padx=(0,8))
-        ttk.Button(top, text="Redimensionar", command=self.resize_matrix_gauss).pack(side="left", padx=(0,6))
+        self.spin_n_gauss.delete(0, "end")
+        self.spin_n_gauss.insert(0, "3")
+        self.spin_n_gauss.pack(side="left", padx=(0, 8))
+
+        ttk.Button(top, text="Redimensionar", command=self.resize_matrix_gauss).pack(side="left", padx=(0, 6))
         ttk.Button(top, text="Ejemplo", command=self.load_example_gauss).pack(side="left", padx=3)
         ttk.Button(top, text="Limpiar", command=self.clear_inputs_gauss).pack(side="left", padx=3)
 
-        # Controles locales de Gauss
-        ctrls = ttk.Frame(tab); ctrls.pack(fill="x", padx=8, pady=(0,8))
-        ttk.Button(ctrls, text="Resolver (inicializar)", style="Accent.TButton",
-                   command=self.start_engine_gauss).pack(side="left", padx=(0,6))
-        ttk.Button(ctrls, text="Siguiente paso", command=self.next_step_gauss).pack(side="left", padx=3)
-        self.btn_auto_gauss = ttk.Button(ctrls, text="Reproducir", command=self.toggle_auto_gauss)
-        self.btn_auto_gauss.pack(side="left", padx=3)
-        ttk.Button(ctrls, text="Reiniciar", command=self.reset_gauss).pack(side="left", padx=3)
-        ttk.Button(ctrls, text="Exportar pasos", command=self.export_log_gauss).pack(side="left", padx=3)
+        # ================= CONTROLES DE GAUSS SIMPLE =======================
+        ctrls = ttk.Frame(tab)
+        ctrls.pack(fill="x", padx=8, pady=(0, 8))
 
-        # Cuerpo: entrada matriz aumentada + vista y pasos
+        ttk.Button(
+            ctrls, text="Resolver (inicializar)",
+            style="Accent.TButton",
+            command=self.start_engine_gauss
+        ).pack(side="left", padx=(0, 6))
+
+        ttk.Button(
+            ctrls, text="Siguiente paso",
+            command=self.next_step_gauss
+        ).pack(side="left", padx=3)
+
+        self.btn_auto_gauss = ttk.Button(
+            ctrls, text="Reproducir",
+            command=self.toggle_auto_gauss
+        )
+        self.btn_auto_gauss.pack(side="left", padx=3)
+
+        ttk.Button(
+            ctrls, text="Reiniciar",
+            command=self.reset_gauss
+        ).pack(side="left", padx=3)
+
+        ttk.Button(
+            ctrls, text="Exportar pasos",
+            command=self.export_log_gauss
+        ).pack(side="left", padx=3)
+
+        # ================= CUERPO: MATRIZ, VISTA Y PASOS ===================
         body = ttk.Panedwindow(tab, orient="horizontal")
         body.pack(fill="both", expand=True, padx=8, pady=8)
 
-        left = ttk.Labelframe(body, text="Matriz aumentada (coeficientes | términos independientes)",
-                              style="Card.TLabelframe", padding=8)
+        left = ttk.Labelframe(
+            body,
+            text="Matriz aumentada (coeficientes | términos independientes)",
+            style="Card.TLabelframe",
+            padding=8
+        )
         self.matrix_input_gauss = MatrixInput(left, rows=3, cols=3, allow_b=True)
         self.matrix_input_gauss.pack(fill="x")
         body.add(left, weight=1)
@@ -775,15 +910,17 @@ class App(tk.Tk):
 
         sub = ttk.Panedwindow(right, orient="horizontal")
         sub.pack(fill="both", expand=True)
+
         boxA = ttk.Labelframe(sub, text="Matriz y pivotes (Gauss)", style="Card.TLabelframe", padding=6)
-        self.matrix_view_gauss = MatrixView(boxA); self.matrix_view_gauss.pack(fill="both", expand=True)
+        self.matrix_view_gauss = MatrixView(boxA)
+        self.matrix_view_gauss.pack(fill="both", expand=True)
         sub.add(boxA, weight=1)
 
         boxB = ttk.Labelframe(sub, text="Pasos / Operaciones", style="Card.TLabelframe", padding=6)
-        self.txt_log_gauss = make_text(boxB, height=14, wrap="word"); self.txt_log_gauss.pack(fill="both", expand=True)
+        self.txt_log_gauss = make_text(boxB, height=14, wrap="word")
+        self.txt_log_gauss.pack(fill="both", expand=True)
         sub.add(boxB, weight=1)
 
-        # --- Cuadro de salida del sistema ---
         solution_card = ttk.Labelframe(
             right,
             text="Resultados del sistema",
@@ -794,7 +931,105 @@ class App(tk.Tk):
         self.txt_solution_gauss.pack(fill="both", expand=True)
         solution_card.pack(fill="x", pady=(8, 0))
 
-    # ------ Lógica interna de la pestaña Gauss ------
+    # -------- Parser para generar la matriz a partir del texto --------
+    def _gauss_generar_matriz(self, simple: bool = False):
+        """
+        Lee el texto del input, lo parsea como sistema de ecuaciones lineales
+        y llena automáticamente la matriz aumentada correspondiente.
+        """
+        # Elegir widgets según pestaña
+        if simple:
+            entry = self.gauss_input_simple
+            preview = self.gauss_preview_simple
+            matrix_input = self.matrix_input_gauss
+        else:
+            entry = self.gauss_input
+            preview = self.gauss_preview
+            matrix_input = self.matrix_input
+
+        raw = entry.get().strip()
+        if not raw:
+            messagebox.showerror("Error", "Debes escribir un sistema de ecuaciones.")
+            return
+
+        import re
+        ecuaciones = [e.strip() for e in raw.replace(",", "\n").split("\n") if e.strip()]
+        if not ecuaciones:
+            messagebox.showerror("Error", "No se detectaron ecuaciones válidas.")
+            return
+
+        parsed = []
+        vars_detectadas = set()
+
+        from fraccion import Fraccion  # por si no está ya importado arriba
+
+        for eq in ecuaciones:
+            if "=" not in eq:
+                messagebox.showerror("Error", f"Falta '=' en la ecuación:\n{eq}")
+                return
+
+            izquierda, derecha = eq.split("=", 1)
+            izquierda = izquierda.strip()
+            derecha = derecha.strip()
+
+            tokens = re.findall(r"[+-]?\s*\d*\s*[a-zA-Z]\d*", izquierda)
+            if not tokens:
+                messagebox.showerror("Error", f"No se encontraron variables en:\n{eq}")
+                return
+
+            coef_dict = {}
+
+            for t in tokens:
+                t = t.replace(" ", "")
+                if not t:
+                    continue
+
+                signo = 1
+                if t[0] == "+":
+                    t = t[1:]
+                elif t[0] == "-":
+                    signo = -1
+                    t = t[1:]
+
+                i = 0
+                num = ""
+                while i < len(t) and t[i].isdigit():
+                    num += t[i]
+                    i += 1
+
+                coef = int(num) if num else 1
+                var = t[i:]  # x, y, z, x1, x2...
+
+                coef_dict[var] = coef_dict.get(var, 0) + signo * coef
+                vars_detectadas.add(var)
+
+            try:
+                b_val = Fraccion(derecha)
+            except Exception:
+                messagebox.showerror("Error", f"Término independiente inválido en:\n{eq}")
+                return
+
+            parsed.append((coef_dict, b_val))
+
+        vars_ordenadas = sorted(vars_detectadas)
+
+        matriz = []
+        for coef_dict, b_val in parsed:
+            fila = [Fraccion(coef_dict.get(var, 0)) for var in vars_ordenadas]
+            fila.append(b_val)
+            matriz.append(fila)
+
+        m = len(matriz)
+        n = len(vars_ordenadas)
+        matrix_input.set_size(m, n)
+
+        for i in range(m):
+            for j in range(n + 1):
+                matrix_input.entries[i][j].delete(0, tk.END)
+                matrix_input.entries[i][j].insert(0, str(matriz[i][j]))
+
+        preview.config(text="\n".join(ecuaciones))
+
 
     def resize_matrix_gauss(self):
         try:
